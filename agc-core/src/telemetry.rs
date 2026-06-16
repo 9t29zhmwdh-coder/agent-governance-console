@@ -49,8 +49,8 @@ impl TelemetrySink {
 
     pub fn record_span(&self, operation: &str, duration_ms: u64) {
         match self {
-            Self::Enabled { service_name, .. } => {
-                tracing::debug!(service = service_name, op = operation, duration_ms, "telemetry span");
+            Self::Enabled { service_name, endpoint } => {
+                tracing::debug!(service = service_name, endpoint = endpoint, op = operation, duration_ms, "telemetry span");
             }
             Self::Disabled(noop) => noop.record_span(operation, duration_ms),
         }
