@@ -38,6 +38,13 @@ async fn main() {
                 let count = s.audit.lock().await.record_count();
                 Json(serde_json::json!({"record_count": count}))
             }
+        }))
+        .route("/api/v1/policies/count", get({
+            let s = state.clone();
+            move || async move {
+                let count = s.policy.lock().await.policy_count();
+                Json(serde_json::json!({"policy_count": count}))
+            }
         }));
 
     let addr: std::net::SocketAddr = cfg.api_bind.parse().expect("invalid bind address");
