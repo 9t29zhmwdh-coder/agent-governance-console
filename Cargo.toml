@@ -1,0 +1,23 @@
+[workspace]
+members = ["agc-core", "agc-api", "agc-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Rafael Yilmaz"]
+repository = "https://github.com/9t29zhmwdh-coder/agent-governance-console"
+
+[workspace.dependencies]
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+thiserror    = "1"
+uuid         = { version = "1", features = ["v4", "serde"] }
+chrono       = { version = "0.4", features = ["serde"] }
+tokio        = { version = "1", features = ["rt-multi-thread", "macros"] }
+axum         = { version = "0.7", features = ["json"] }
+tower        = "0.4"
+tower-http   = { version = "0.5", features = ["cors", "trace"] }
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
