@@ -6,7 +6,7 @@
 
 **Governance, Tracing, Policy Enforcement und Observability für agentische Workflows.**
 
-Ausführungs-Traces einlesen, Governance-Regeln anwenden, Audit-Protokolle exportieren — mit optionaler Azure Monitor-Integration.
+Ausführungs-Traces einlesen, Governance-Regeln anwenden, Audit-Protokolle exportieren; mit optionaler Azure Monitor-Integration.
 
 [![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
@@ -60,8 +60,8 @@ cargo test --workspace
 ## Voraussetzungen
 
 - Rust 1.78+
-- Docker (optional — für containerisiertes Deployment)
-- Azure Monitor / OTLP-Endpunkt (optional — für Telemetrie)
+- Docker (optional, für containerisiertes Deployment)
+- Azure Monitor / OTLP-Endpunkt (optional, für Telemetrie)
 
 ---
 
