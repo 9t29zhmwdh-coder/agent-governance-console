@@ -6,7 +6,7 @@
 
 **Governance, tracing, policy enforcement and observability for agentic workflows.**
 
-Ingest execution traces, enforce governance policies, export audit records — with first-class Azure Monitor and Microsoft Sentinel integration.
+Ingest execution traces, enforce governance policies and export audit records. First-class Azure Monitor and Microsoft Sentinel integration included.
 
 [![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -20,7 +20,7 @@ Ingest execution traces, enforce governance policies, export audit records — w
 
 ## Overview
 
-Agent Governance Console (AGC) is an enterprise toolkit for governing, observing, and auditing AI agent workflows. It exposes a REST API for OpenTelemetry-compatible trace ingestion, evaluates governance policies against each span, and writes immutable audit records — all with opt-in export to Azure Monitor, Log Analytics, and Microsoft Sentinel.
+Agent Governance Console (AGC) is an enterprise toolkit for governing, observing, and auditing AI agent workflows. It exposes a REST API for OpenTelemetry-compatible trace ingestion, evaluates governance policies against each span, and writes immutable audit records; all with opt-in export to Azure Monitor, Log Analytics, and Microsoft Sentinel.
 
 ---
 
@@ -30,11 +30,11 @@ Agent Governance Console (AGC) is an enterprise toolkit for governing, observing
 |---------|-------------|
 | **Trace Ingestion** | OTLP-compatible span ingestion with in-memory and persistent storage |
 | **Policy Engine** | Rule-based governance: warn, block, or alert on span conditions |
-| **Audit Log** | Append-only records — NDJSON and CSV export for compliance |
+| **Audit Log** | Append-only records: NDJSON and CSV export for compliance |
 | **Azure Monitor** | OTLP export to Azure Monitor Application Insights |
 | **Microsoft Sentinel** | CEF / NDJSON audit export for Sentinel SIEM ingestion |
 | **Entra ID Auth** | Bearer token validation via Microsoft Identity platform (configurable) |
-| **REST API** | Axum-based HTTP API — `/ingest`, `/audit`, `/policies`, `/health` |
+| **REST API** | Axum-based HTTP API: `/ingest`, `/audit`, `/policies`, `/health` |
 | **Opt-in Telemetry** | Disabled by default; activated via `OTLP_ENDPOINT` config |
 
 ---
@@ -108,7 +108,7 @@ tenant_id = "${AZURE_TENANT_ID}"
 client_id = "${AGC_CLIENT_ID}"
 ```
 
-Tokens are validated against the Microsoft Identity platform JWKS endpoint — no external auth library required.
+Tokens are validated against the Microsoft Identity platform JWKS endpoint without any external auth library.
 
 ---
 
@@ -151,8 +151,8 @@ az containerapp create \
 ## Requirements
 
 - Rust 1.78+
-- Docker (optional — containerised deployment)
-- Azure subscription (optional — Monitor / Sentinel integration)
+- Docker (optional, for containerised deployment)
+- Azure subscription (optional, for Monitor / Sentinel integration)
 
 ---
 
