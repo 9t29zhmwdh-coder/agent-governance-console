@@ -8,6 +8,8 @@
 
 Ingest execution traces, enforce governance policies and export audit records. First-class Azure Monitor and Microsoft Sentinel integration included.
 
+Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com/en-us/azure/machine-learning/concept-responsible-ai) and designed for enterprise AI governance teams operating in regulated Microsoft cloud environments.
+
 [![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Rust](https://img.shields.io/badge/Rust-1.78+-orange?logo=rust)](https://www.rust-lang.org)

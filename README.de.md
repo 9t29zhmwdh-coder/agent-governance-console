@@ -8,6 +8,8 @@
 
 Ausführungs-Traces einlesen, Governance-Regeln anwenden, Audit-Protokolle exportieren; mit optionaler Azure Monitor-Integration.
 
+Ausgerichtet an den [Microsoft Responsible AI-Grundsaetzen](https://learn.microsoft.com/de-de/azure/machine-learning/concept-responsible-ai) und konzipiert fuer Enterprise KI-Governance-Teams in regulierten Microsoft-Cloud-Umgebungen.
+
 [![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
 [![Plattform: Linux / Windows / macOS](https://img.shields.io/badge/Plattform-Linux%20%7C%20Windows%20%7C%20macOS-blue)](#)
