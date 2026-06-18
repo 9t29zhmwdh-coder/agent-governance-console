@@ -1,4 +1,4 @@
-# Privacy Policy — Agent Governance Console
+# Privacy Policy : Agent Governance Console
 
 ## Summary / Zusammenfassung
 
