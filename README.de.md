@@ -18,7 +18,7 @@ Ausgerichtet an den [Microsoft Responsible AI-Grundsaetzen](https://learn.micros
 
 ## Übersicht
 
-Agent Governance Console (AGC) ist ein Enterprise-Toolkit zur Steuerung, Beobachtung und Überprüfung von KI-Agent-Workflows. Es stellt eine REST-API zur Trace-Aufnahme, eine Governance-Policy-Engine, ein unveränderliches Audit-Protokoll und optionale Azure Monitor- / OTLP-Telemetrie bereit.
+Agent Governance Console (AGC) ist ein Enterprise-Toolkit zur Steuerung, Beobachtung und Überprüfung von AI-Agent-Workflows. Es stellt eine REST-API zur Trace-Aufnahme, eine Governance-Policy-Engine, ein unveränderliches Audit-Protokoll und optionale Azure Monitor- / OTLP-Telemetrie bereit.
 
 ## Funktionen
 
