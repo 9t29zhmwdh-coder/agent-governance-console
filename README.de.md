@@ -10,9 +10,7 @@ Ausführungs-Traces einlesen, Governance-Regeln anwenden, Audit-Protokolle expor
 
 Ausgerichtet an den [Microsoft Responsible AI-Grundsaetzen](https://learn.microsoft.com/de-de/azure/machine-learning/concept-responsible-ai) und konzipiert fuer Enterprise KI-Governance-Teams in regulierten Microsoft-Cloud-Umgebungen.
 
-[![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions)
-[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-blue.svg)](LICENSE)
-[![Plattform: Linux / Windows / macOS](https://img.shields.io/badge/Plattform-Linux%20%7C%20Windows%20%7C%20macOS-blue)](#)
+[![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions) ![Azure Ready](https://img.shields.io/badge/Azure-Ready-0078d4?logo=microsoftazure&logoColor=white) ![Platform](https://img.shields.io/badge/Platform-Linux_%7C_macOS_%7C_Windows-lightgrey) ![Rust](https://img.shields.io/badge/Rust-CE422B?logo=rust&logoColor=white) ![AI | Claude Code](https://img.shields.io/badge/AI-Claude_Code-black?logo=anthropic&logoColor=white) ![AI | Copilot](https://img.shields.io/badge/AI-Copilot-black?logo=github&logoColor=white)
 
 </div>
 
@@ -72,3 +70,5 @@ cargo test --workspace
 **RayStudio · Rafael Yilmaz · MIT-Lizenz · 2026**
 
 </div>
+
+**Autor:** [Rafael Yilmaz](https://github.com/9t29zhmwdh-coder) · **Status:** Active · v0.1.0 · **Lizenz:** MIT
