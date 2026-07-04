@@ -79,7 +79,7 @@ Spans appear in Application Insights under **Custom Events → agc.span**.
 Export the audit log in CEF format for Sentinel ingestion:
 
 ```bash
-# Export as NDJSON — ingest via Log Analytics Data Collector API
+# Export as NDJSON, ingest via Log Analytics Data Collector API
 curl http://127.0.0.1:8080/audit/export?format=ndjson > audit.ndjson
 
 # Or stream via Azure Monitor Agent / Syslog forwarder
