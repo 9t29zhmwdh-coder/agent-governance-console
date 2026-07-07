@@ -6,7 +6,7 @@
 
 **Governance, tracing, policy enforcement and observability for agentic workflows.**
 
-Ingest execution traces, enforce governance policies and export audit records. First-class Azure Monitor and Microsoft Sentinel integration included.
+A Rust workspace laying the groundwork for tracing, policy enforcement and audit logging of AI agent activity, with Azure Monitor and Microsoft Sentinel integration on the roadmap.
 
 Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com/en-us/azure/machine-learning/concept-responsible-ai) and designed for enterprise AI governance teams operating in regulated Microsoft cloud environments.
 
@@ -14,26 +14,34 @@ Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com
 
 </div>
 
+> **How it runs:** AGC is not a hosted service and not a desktop app. `agc-api` is a small REST API server you run yourself with `cargo run`, on `127.0.0.1:8080` by default. There is no installer and nothing runs in the background; you start and stop the process yourself.
+
+![Agent Governance Console](docs/screenshot.png)
+
 ---
 
 ## Overview
 
-Agent Governance Console (AGC) is an enterprise toolkit for governing, observing, and auditing AI agent workflows. It exposes a REST API for OpenTelemetry-compatible trace ingestion, evaluates governance policies against each span, and writes immutable audit records; all with opt-in export to Azure Monitor, Log Analytics, and Microsoft Sentinel.
+Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `agc-api`, `agc-cli`) for governing, observing and auditing AI agent workflows. The core library already models trace spans, governance policies and audit records with a tested API; the REST API currently exposes read-only health and count endpoints, with ingestion, policy loading and audit export planned for v0.2.0 (see [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel and Entra ID integration are planned for v0.3.0+ and not implemented yet.
+
+**In practice:** today you get a tested Rust library for modeling agent traces, policies and audit records, plus a REST API that reports how many of each have been loaded. It is a foundation to build on, not yet a drop-in governance layer for production agent traffic.
 
 ---
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Trace Ingestion** | OTLP-compatible span ingestion with in-memory and persistent storage |
-| **Policy Engine** | Rule-based governance: warn, block, or alert on span conditions |
-| **Audit Log** | Append-only records: NDJSON and CSV export for compliance |
-| **Azure Monitor** | OTLP export to Azure Monitor Application Insights |
-| **Microsoft Sentinel** | CEF / NDJSON audit export for Sentinel SIEM ingestion |
-| **Entra ID Auth** | Bearer token validation via Microsoft Identity platform (configurable) |
-| **REST API** | Axum-based HTTP API: `/ingest`, `/audit`, `/policies`, `/health` |
-| **Opt-in Telemetry** | Disabled by default; activated via `OTLP_ENDPOINT` config |
+| Feature | Status |
+|---------|--------|
+| **Trace model** (`TraceSpan`, `TraceStore`) | Available: in-memory store, sorted ingestion, tested |
+| **Audit model** (`AuditRecord`, `AuditLog`) | Available: NDJSON/CSV export methods, tested (not yet exposed via API) |
+| **Policy model** (`GovernancePolicy`, `PolicyRule`) | Available: data model only; rule evaluation is a stub until v0.2.0 |
+| **REST API** | Available now: `/health`, `/api/v1/traces/count`, `/api/v1/audit/count`, `/api/v1/policies/count` |
+| **Trace ingestion via API** | Planned v0.2.0: `POST /api/v1/traces` |
+| **Policy loading & evaluation via API** | Planned v0.2.0: `POST /api/v1/policies`, real-time gating |
+| **Audit export via API** | Planned v0.2.0: `GET /api/v1/audit/export.ndjson` / `.csv` |
+| **Azure Monitor / Sentinel / Entra ID** | Planned v0.3.0+, see [ROADMAP.md](ROADMAP.md) |
+
+Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 
 ---
 
@@ -49,10 +57,10 @@ cargo run --bin agc-api
 # Health check
 curl http://127.0.0.1:8080/health
 
-# Ingest a trace span
-curl -X POST http://127.0.0.1:8080/ingest \
-  -H "Content-Type: application/json" \
-  -d '{"trace_id":"abc123","span_id":"s1","operation":"llm.invoke","duration_ms":312}'
+# Counts (all zero until ingestion lands in v0.2.0)
+curl http://127.0.0.1:8080/api/v1/traces/count
+curl http://127.0.0.1:8080/api/v1/audit/count
+curl http://127.0.0.1:8080/api/v1/policies/count
 
 # Run tests
 cargo test --workspace
@@ -60,78 +68,9 @@ cargo test --workspace
 
 ---
 
-## Azure Integration
+## Uninstall / Cleanup
 
-### Azure Monitor / Application Insights
-
-Set the OTLP endpoint to stream all trace spans to Azure Monitor:
-
-```bash
-export OTLP_ENDPOINT="https://ingest.monitor.azure.com/v1/traces"
-export AZURE_MONITOR_CONNECTION_STRING="InstrumentationKey=...;IngestionEndpoint=..."
-cargo run --bin agc-api
-```
-
-Spans appear in Application Insights under **Custom Events → agc.span**.
-
-### Microsoft Sentinel (SIEM)
-
-Export the audit log in CEF format for Sentinel ingestion:
-
-```bash
-# Export as NDJSON, ingest via Log Analytics Data Collector API
-curl http://127.0.0.1:8080/audit/export?format=ndjson > audit.ndjson
-
-# Or stream via Azure Monitor Agent / Syslog forwarder
-```
-
-Query in Sentinel (KQL):
-```kql
-AgcAuditLog_CL
-| where TimeGenerated > ago(24h)
-| where policy_verdict_s == "block"
-| summarize blocked = count() by agent_id_s
-| order by blocked desc
-```
-
-### Entra ID (Azure AD) Authentication
-
-Enable bearer token validation for production deployments:
-
-```toml
-# agc.toml
-[auth]
-provider = "entra"
-tenant_id = "${AZURE_TENANT_ID}"
-client_id = "${AGC_CLIENT_ID}"
-```
-
-Tokens are validated against the Microsoft Identity platform JWKS endpoint without any external auth library.
-
----
-
-## Deployment
-
-### Docker
-
-```bash
-docker build -t agc-api .
-docker run -p 8080:8080 \
-  -e OTLP_ENDPOINT="..." \
-  -e AGC_POLICY_PATH="/etc/agc/policies.toml" \
-  agc-api
-```
-
-### Azure Container Apps
-
-```bash
-az containerapp create \
-  --name agc-api \
-  --resource-group rg-governance \
-  --image ghcr.io/9t29zhmwdh-coder/agc-api:latest \
-  --ingress external --target-port 8080 \
-  --env-vars OTLP_ENDPOINT=secretref:otlp-endpoint
-```
+`agc-api` keeps everything in memory: stopping the process (Ctrl-C) removes all ingested data, there is nothing to clean up on disk. Delete the `target/` build directory to reclaim build cache space.
 
 ---
 
@@ -166,4 +105,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-**Author:** [Rafael Yilmaz](https://github.com/9t29zhmwdh-coder) · **Status:** Active · ![version](https://img.shields.io/github/v/release/9t29zhmwdh-coder/agent-governance-console?color=6b7280&style=flat-square) · **License:** MIT
+**Author:** [Rafael Yilmaz](https://github.com/9t29zhmwdh-coder) · **Status:** Early Release · ![version](https://img.shields.io/github/v/release/9t29zhmwdh-coder/agent-governance-console?color=6b7280&style=flat-square) · **License:** MIT
