@@ -4,6 +4,8 @@
 
 # Agent Governance Console
 
+[🇬🇧 English Version](README.md)
+
 **Governance, Tracing, Policy Enforcement und Observability für agentische Workflows.**
 
 Ein Rust-Workspace als Grundlage für Tracing, Policy Enforcement und Audit-Logging von AI-Agent-Aktivität; Azure Monitor- und Microsoft-Sentinel-Integration sind auf der Roadmap.
