@@ -47,6 +47,16 @@ Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_referen
 
 ---
 
+## Requirements
+
+- Rust 1.78+
+- Docker (optional, for containerised deployment)
+- Azure subscription (optional, for Monitor / Sentinel integration)
+
+> 🌱 New here? → [Step-by-step guide for beginners](GETTING_STARTED.md)
+
+---
+
 ## Quickstart
 
 ```bash
@@ -84,14 +94,6 @@ cargo test --workspace
 - [API Reference](docs/api_reference.md)
 - [Privacy & Telemetry](PRIVACY.md)
 - [Roadmap](ROADMAP.md)
-
----
-
-## Requirements
-
-- Rust 1.78+
-- Docker (optional, for containerised deployment)
-- Azure subscription (optional, for Monitor / Sentinel integration)
 
 ---
 
