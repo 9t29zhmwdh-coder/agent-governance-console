@@ -22,6 +22,10 @@ Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.micros
 
 ---
 
+> 🌱 Neu hier? → [Schritt-für-Schritt-Anleitung für Einsteiger](GETTING_STARTED.md)
+
+---
+
 ## Übersicht
 
 Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-api`, `agc-cli`) zur Steuerung, Beobachtung und Überprüfung von AI-Agent-Workflows. Die Core-Bibliothek modelliert Trace-Spans, Governance-Policies und Audit-Records bereits mit getesteter API; die REST-API bietet aktuell nur schreibgeschützte Health- und Zähl-Endpunkte, Ingestion, Policy-Laden und Audit-Export sind für v0.2.0 geplant (siehe [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel und Entra ID sind für v0.3.0+ geplant und noch nicht umgesetzt.
