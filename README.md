@@ -22,6 +22,10 @@ Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com
 
 ---
 
+> 🌱 New here? → [Step-by-step guide for beginners](GETTING_STARTED.md)
+
+---
+
 ## Overview
 
 Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `agc-api`, `agc-cli`) for governing, observing and auditing AI agent workflows. The core library already models trace spans, governance policies and audit records with a tested API; the REST API currently exposes read-only health and count endpoints, with ingestion, policy loading and audit export planned for v0.2.0 (see [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel and Entra ID integration are planned for v0.3.0+ and not implemented yet.
@@ -52,8 +56,6 @@ Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_referen
 - Rust 1.78+
 - Docker (optional, for containerised deployment)
 - Azure subscription (optional, for Monitor / Sentinel integration)
-
-> 🌱 New here? → [Step-by-step guide for beginners](GETTING_STARTED.md)
 
 ---
 
