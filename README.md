@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="RayStudio.png" alt="RayStudio" width="80" />
+<img src="RayStudio.png" alt="RayStudio" width="120" />
 
 # Agent Governance Console
 
