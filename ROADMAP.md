@@ -48,6 +48,16 @@
 - [ ] Helm chart for Kubernetes deployment
 - [ ] SLA: p99 ingest latency < 10ms for 1K spans/s
 
+## Dual-Licensing Readiness
+
+Assessed 2026-07-11 as a Dual-Licensing candidate (Community MIT + Commercial/Enterprise tier): governance/audit tooling for regulated environments is a plausible enterprise sales category, and AGC already targets that audience explicitly (see the README's "enterprise AI governance teams" framing). Not ready yet; blocked on:
+
+- [ ] No authentication on the REST API at all (v0.1 has none, AAD JWT is a v0.3.0/v1.0.0 item above): an Enterprise tier needs a real auth story before it can gate anything
+- [ ] No multi-tenancy (v1.0.0 item above): a Commercial tier's core value is usually per-tenant isolation and RBAC
+- [ ] No persistence yet (audit log is in-memory until the v0.2.0 SQLite item lands): nothing to actually license access to yet
+
+Once v1.0.0's multi-tenant mode and RBAC land, revisit: candidate Enterprise-only features would be multi-tenant isolation, RBAC/SSO, Sentinel analytics export, and compliance report generation, with the core trace/policy/audit engine staying Community/MIT.
+
 ## Out of Scope
 
 - Model training or inference (governance of agent workflows only)
