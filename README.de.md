@@ -4,6 +4,8 @@
 
 # Agent Governance Console
 
+</div>
+
 [🇬🇧 English Version](README.md)
 
 **Governance, Tracing, Policy Enforcement und Observability für agentische Workflows.**
@@ -14,7 +16,6 @@ Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.micros
 
 [![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions) ![Azure Ready](https://img.shields.io/badge/Azure-Ready-0078d4?logo=microsoftazure&logoColor=white) ![Platform](https://img.shields.io/badge/Platform-Windows_%7C_Ubuntu-lightgrey) ![Rust](https://img.shields.io/badge/Rust-CE422B?logo=rust&logoColor=white) ![AI | Claude Code](https://img.shields.io/badge/AI-Claude_Code-black?logo=anthropic&logoColor=white) ![AI | Copilot](https://img.shields.io/badge/AI-Copilot-black?logo=github&logoColor=white) [![Release](https://img.shields.io/github/v/release/9t29zhmwdh-coder/agent-governance-console?color=3F8E7E)](https://github.com/9t29zhmwdh-coder/agent-governance-console/releases) [![License](https://img.shields.io/github/license/9t29zhmwdh-coder/agent-governance-console?color=lightgrey)](LICENSE)
 
-</div>
 
 > **So läuft das:** AGC ist kein gehosteter Dienst und keine Desktop-App. `agc-api` ist ein kleiner REST-API-Server, den du selbst mit `cargo run` startest, standardmässig auf `127.0.0.1:8080`. Es gibt keinen Installer und nichts läuft im Hintergrund, du startest und stoppst den Prozess selbst.
 
