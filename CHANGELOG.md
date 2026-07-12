@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.1.7] - 2026-07-12
+
+### Fixed
+
+- Removed em-dashes/en-dashes across 17 files (docs, source comments, scripts, Cargo.toml descriptions), Swiss German orthography rule. Deleted stale scaffold bookkeeping files SKELETON.md and TEMPLATE_NOTES.md.
+- Corrected a version drift: Cargo.toml's workspace version was still at 0.1.5 while the latest release tag was already v0.1.6.
+
 ## [0.1.5] - 2026-07-11
 
 ### Fixed

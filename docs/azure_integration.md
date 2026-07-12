@@ -1,4 +1,4 @@
-# Azure Integration Guide — Agent Governance Console
+# Azure Integration Guide: Agent Governance Console
 
 ## Overview
 
@@ -39,7 +39,7 @@ Use with a Managed Identity for secretless authentication.
 
 ---
 
-## Azure Log Analytics — Audit Ingest
+## Azure Log Analytics: Audit Ingest
 
 Export the audit log as NDJSON and push via the Data Collection Rules (DCR) API:
 
@@ -57,7 +57,7 @@ curl -X POST \
 
 ---
 
-## Microsoft Graph — Agent App Registrations
+## Microsoft Graph: Agent App Registrations
 
 Query the app registrations used as agent identities:
 

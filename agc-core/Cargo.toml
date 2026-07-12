@@ -3,7 +3,7 @@ name        = "agc-core"
 version.workspace     = true
 edition.workspace     = true
 license.workspace     = true
-description = "Agent Governance Console — core library"
+description = "Agent Governance Console: core library"
 
 [dependencies]
 serde        = { workspace = true }

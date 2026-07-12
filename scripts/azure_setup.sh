@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# azure_setup.sh — Provision Azure Monitor resources for AGC telemetry
+# azure_setup.sh: Provision Azure Monitor resources for AGC telemetry
 #
 # Requirements: Azure CLI (az), authenticated with a principal that has
 # Contributor rights on the target resource group.
