@@ -92,6 +92,7 @@ cargo test --workspace
 
 - [Architecture](ARCHITECTURE.md)
 - [Azure Integration Guide](docs/azure_integration.md)
+- [Trace Schema](docs/trace_schema.md)
 - [Policy DSL Reference](docs/policy_dsl.md)
 - [API Reference](docs/api_reference.md)
 - [Privacy & Telemetry](PRIVACY.md)
