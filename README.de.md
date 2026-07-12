@@ -48,6 +48,12 @@ Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
 
+## Voraussetzungen
+
+- Rust 1.78+
+- Docker (optional, für containerisiertes Deployment)
+- Azure-Abonnement (optional, für Monitor-/Sentinel-Integration)
+
 ## Schnellstart
 
 ```bash
@@ -80,14 +86,16 @@ cargo test --workspace
 - [Trace-Schema](docs/trace_schema.md)
 - [Policy-DSL-Referenz](docs/policy_dsl.md)
 - [API-Referenz](docs/api_reference.md)
+- [Datenschutz & Telemetrie](PRIVACY.md)
 - [Roadmap](ROADMAP.md)
-- [Datenschutzrichtlinie](PRIVACY.md)
 
-## Voraussetzungen
+## Sicherheit
 
-- Rust 1.78+
-- Docker (optional, für containerisiertes Deployment)
-- Azure Monitor / OTLP-Endpunkt (optional, für Telemetrie)
+Siehe [SECURITY.md](SECURITY.md) für Schwachstellenmeldungen. Alle Policy-Entscheidungen werden unveränderlich protokolliert; Audit-Records können über die API nicht verändert oder gelöscht werden.
+
+## Mitwirken
+
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

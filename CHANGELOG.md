@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.1.8] - 2026-07-13
+
+### Added
+
+- README.de.md was missing whole "Security"/"Sicherheit" and "Contributing"/"Mitwirken" sections that README.md has; added both.
+- README.md's "Documentation" list was missing the "Trace Schema" doc link that README.de.md already had; added it for parity in both languages.
+
+### Fixed
+
+- README.de.md section order now matches README.md (Voraussetzungen/Requirements moved from the end to before Schnellstart/Quickstart).
+
 ## [0.1.7] - 2026-07-12
 
 ### Fixed
