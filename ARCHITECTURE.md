@@ -1,4 +1,4 @@
-# Architecture — Agent Governance Console
+# Architecture: Agent Governance Console
 
 ## System Overview
 
@@ -31,27 +31,27 @@ AGC is a Rust workspace with three crates. The `agc-core` library contains all d
 ## Module Responsibilities
 
 ### `trace`
-- `TraceLevel` — Debug / Info / Warn / Error (ordered)
-- `TraceSpan` — single execution span: agent ID, operation, timestamps, structured attributes
-- `TraceStore` — sorted in-memory store; query by trace ID, filter errors
+- `TraceLevel`: Debug / Info / Warn / Error (ordered)
+- `TraceSpan`: single execution span: agent ID, operation, timestamps, structured attributes
+- `TraceStore`: sorted in-memory store; query by trace ID, filter errors
 
 ### `policy`
-- `GovernancePolicy` — named policy with agent scope and rule list
-- `PolicyRule` — condition + action pair
-- `PolicyCondition` — `SpanLevelAtLeast`, `TokenBudgetExceeded`, `OperationMatches`
-- `PolicyAction` — `Warn`, `Block`, `Alert`
-- `PolicyEngine` — load policies, resolve applicable rules per agent/operation
+- `GovernancePolicy`: named policy with agent scope and rule list
+- `PolicyRule`: condition + action pair
+- `PolicyCondition`: `SpanLevelAtLeast`, `TokenBudgetExceeded`, `OperationMatches`
+- `PolicyAction`: `Warn`, `Block`, `Alert`
+- `PolicyEngine`: load policies, resolve applicable rules per agent/operation
 
 ### `audit`
-- `AuditRecord` — immutable record: agent, action, outcome, policy reference, details
-- `AuditOutcome` — Allowed / Blocked / Warned / Alerted
-- `AuditLog` — append-only log; NDJSON export (Azure Log Analytics), CSV export
+- `AuditRecord`: immutable record: agent, action, outcome, policy reference, details
+- `AuditOutcome`: Allowed / Blocked / Warned / Alerted
+- `AuditLog`: append-only log; NDJSON export (Azure Log Analytics), CSV export
 
 ### `telemetry`
-- `TelemetryConfig` — opt-in flag, OTLP endpoint, service name, agent-ID inclusion flag
-- `TelemetrySink` — routes to real OTLP exporter or `NoopTelemetry`
+- `TelemetryConfig`: opt-in flag, OTLP endpoint, service name, agent-ID inclusion flag
+- `TelemetrySink`: routes to real OTLP exporter or `NoopTelemetry`
 
-## Data Flow — Trace Ingestion + Policy Evaluation
+## Data Flow: Trace Ingestion + Policy Evaluation
 
 ```
 Agent Runtime

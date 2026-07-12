@@ -21,7 +21,7 @@ rustc --version
 cargo --version
 ```
 
-- If you see version numbers (e.g. `rustc 1.78.0`), Rust is installed — skip to step 3.
+- If you see version numbers (e.g. `rustc 1.78.0`), Rust is installed; skip to step 3.
 - If you see an error like `'rustc' is not recognized as an internal or external command`, Rust is either not installed or not in your system's PATH.
 
 Install Rust from **https://rustup.rs**: download and run `rustup-init.exe`, then follow the on-screen instructions (the default options are fine). After installation finishes, **close and reopen your terminal**, then repeat the version checks above.
@@ -51,7 +51,7 @@ This downloads dependencies and compiles the project. It can take a few minutes 
 
 ### 5. Run it
 
-Try the command-line tool first — it needs no setup, no credentials, and no running server:
+Try the command-line tool first; it needs no setup, no credentials, and no running server:
 
 ```powershell
 .\target\release\agc-cli.exe
@@ -89,7 +89,7 @@ Press `Ctrl-C` in the first terminal to stop the server. Everything AGC stores i
 
 ### 1. Open a terminal
 
-This depends on your desktop environment (GNOME, KDE, XFCE, etc.). Look for an application called **Terminal**, **Konsole**, or similar in your application menu — searching for "Terminal" usually finds it. Many distributions also support the keyboard shortcut `Ctrl+Alt+T`.
+This depends on your desktop environment (GNOME, KDE, XFCE, etc.). Look for an application called **Terminal**, **Konsole**, or similar in your application menu; searching for "Terminal" usually finds it. Many distributions also support the keyboard shortcut `Ctrl+Alt+T`.
 
 ### 2. Check if Rust is installed
 
@@ -98,7 +98,7 @@ rustc --version
 cargo --version
 ```
 
-- If you see version numbers, Rust is installed — skip to step 3.
+- If you see version numbers, Rust is installed; skip to step 3.
 - If you see `command not found: rustc`, Rust is not installed or not in your PATH.
 
 Install it using the official installer from **https://rustup.rs** by running the curl one-liner shown on that page:
@@ -132,7 +132,7 @@ cargo build --release
 
 ### 5. Run it
 
-Try the command-line tool first — it needs no setup, no credentials, and no running server:
+Try the command-line tool first; it needs no setup, no credentials, and no running server:
 
 ```bash
 ./target/release/agc-cli
@@ -177,7 +177,7 @@ rustc --version
 cargo --version
 ```
 
-- If you see version numbers, Rust is installed — skip to step 3.
+- If you see version numbers, Rust is installed; skip to step 3.
 - If you see `command not found: rustc`, Rust is not installed or not in your PATH.
 
 Install it using the official installer from **https://rustup.rs** by running the curl one-liner shown on that page:
@@ -211,7 +211,7 @@ cargo build --release
 
 ### 5. Run it
 
-Try the command-line tool first — it needs no setup, no credentials, and no running server:
+Try the command-line tool first; it needs no setup, no credentials, and no running server:
 
 ```bash
 ./target/release/agc-cli

@@ -24,7 +24,7 @@ impl NoopTelemetry {
     }
 }
 
-/// Telemetry facade — routes to real OTLP exporter or no-op.
+/// Telemetry facade: routes to real OTLP exporter or no-op.
 pub enum TelemetrySink {
     Enabled { endpoint: String, service_name: String },
     Disabled(NoopTelemetry),

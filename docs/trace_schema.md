@@ -1,4 +1,4 @@
-# Trace Schema — Agent Governance Console
+# Trace Schema: Agent Governance Console
 
 ## TraceSpan
 
@@ -9,11 +9,11 @@ AGC traces are compatible with the OpenTelemetry data model.
   "span_id":        "uuid-v4",
   "trace_id":       "uuid-v4",
   "parent_span_id": "uuid-v4 | null",
-  "agent_id":       "string — identifies the agent instance",
-  "operation":      "string — e.g. 'reasoning', 'tool_call:shell', 'llm_call'",
+  "agent_id":       "string, identifies the agent instance",
+  "operation":      "string, e.g. 'reasoning', 'tool_call:shell', 'llm_call'",
   "level":          "debug | info | warn | error",
-  "started_at":     "ISO 8601 UTC — e.g. 2026-06-16T10:00:00.000Z",
-  "ended_at":       "ISO 8601 UTC | null — null if span is open",
+  "started_at":     "ISO 8601 UTC, e.g. 2026-06-16T10:00:00.000Z",
+  "ended_at":       "ISO 8601 UTC | null; null if span is open",
   "attributes": {
     "tokens_in":    1024,
     "tokens_out":   256,
@@ -33,7 +33,7 @@ AGC traces are compatible with the OpenTelemetry data model.
 | `model` | string | Model identifier used for inference |
 | `tool` | string | Tool name (for `tool_call:*` spans) |
 | `error` | string | Error message (for `error` level spans) |
-| `command` | string | Shell command (for `tool_call:shell` — privacy-sensitive) |
+| `command` | string | Shell command (for `tool_call:shell`, privacy-sensitive) |
 | `url` | string | HTTP URL (for `tool_call:http`) |
 
 ## Ingestion (v0.2.0+)
