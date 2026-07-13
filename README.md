@@ -39,7 +39,7 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | Feature | Status |
 |---------|--------|
 | **Trace model** (`TraceSpan`, `TraceStore`) | Available: in-memory store, sorted ingestion, tested |
-| **Audit model** (`AuditRecord`, `AuditLog`) | Available: NDJSON/CSV export methods, tested (not yet exposed via API) |
+| **Audit model** (`AuditRecord`, `AuditLog`) | Available: SQLite-backed (in-memory by default, or a real file via `AGC_AUDIT_DB_PATH`/`AppState::with_audit_db`), NDJSON/CSV export methods, tested (not yet exposed via API) |
 | **Policy model** (`GovernancePolicy`, `PolicyRule`) | Available: data model only; rule evaluation is a stub until v0.2.0 |
 | **REST API** | Available now: `/health`, `/api/v1/traces/count`, `/api/v1/audit/count`, `/api/v1/policies/count` |
 | **Trace ingestion via API** | Planned v0.2.0: `POST /api/v1/traces` |
@@ -67,6 +67,9 @@ cargo build --workspace
 
 # Start API server (default: http://127.0.0.1:8080)
 cargo run --bin agc-api
+
+# Same, but persist the audit log to a real SQLite file instead of in-memory
+AGC_AUDIT_DB_PATH=./agc-audit.sqlite cargo run --bin agc-api
 
 # Health check
 curl http://127.0.0.1:8080/health

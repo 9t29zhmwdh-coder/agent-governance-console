@@ -5,6 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.0] - 2026-07-13
+
+### Added
+
+- SQLite-backed audit log (`rusqlite`, bundled): `AuditLog::new()` still defaults to an in-memory database (previous behavior), `AuditLog::open(path)` persists to a real file. Wired into the running server: set `AGC_AUDIT_DB_PATH` (or call `AppState::with_audit_db`/`from_config` directly) to persist audit records across restarts instead of losing them on every shutdown.
+- Closes the persistence blocker in this repo's Dual-Licensing Readiness assessment (ROADMAP.md); no-auth-on-the-API and no-multi-tenancy remain open.
+
+### Changed
+
+- `AuditLog::records_for_agent`/`blocked_records` now return owned `Vec<AuditRecord>` instead of `Vec<&AuditRecord>`, since a SQLite-backed store can't hand out references into its own rows.
+
 ## [0.1.8] - 2026-07-13
 
 ### Added

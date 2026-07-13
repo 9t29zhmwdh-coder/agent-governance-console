@@ -20,7 +20,7 @@
 - [ ] GET `/api/v1/audit` (paginated audit log query)
 - [ ] GET `/api/v1/audit/export.csv` and `/export.ndjson` (streaming export)
 - [ ] Policy evaluation on every ingested span (real-time gate)
-- [ ] SQLite persistence for audit log (`rusqlite`)
+- [x] SQLite persistence for audit log (`rusqlite`): `AuditLog::open(path)` for a real file, `AuditLog::new()` still in-memory by default; wired into the running server via `AGC_AUDIT_DB_PATH` / `AppState::with_audit_db`/`from_config`
 
 ## v0.3.0 : Azure Integration
 
@@ -54,7 +54,7 @@ Assessed 2026-07-11 as a Dual-Licensing candidate (Community MIT + Commercial/En
 
 - [ ] No authentication on the REST API at all (v0.1 has none, AAD JWT is a v0.3.0/v1.0.0 item above): an Enterprise tier needs a real auth story before it can gate anything
 - [ ] No multi-tenancy (v1.0.0 item above): a Commercial tier's core value is usually per-tenant isolation and RBAC
-- [ ] No persistence yet (audit log is in-memory until the v0.2.0 SQLite item lands): nothing to actually license access to yet
+- [x] ~~No persistence yet~~ SQLite persistence for the audit log shipped in v0.2.0 (see above); trace store and policy engine are still in-memory only, so there is still no durable data across the whole system to license access to yet
 
 Once v1.0.0's multi-tenant mode and RBAC land, revisit: candidate Enterprise-only features would be multi-tenant isolation, RBAC/SSO, Sentinel analytics export, and compliance report generation, with the core trace/policy/audit engine staying Community/MIT.
 
