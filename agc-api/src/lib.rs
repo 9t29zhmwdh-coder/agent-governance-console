@@ -18,6 +18,26 @@ impl AppState {
             policy: Arc::new(Mutex::new(PolicyEngine::new())),
         }
     }
+
+    /// Same as `new()`, but the audit log persists to a SQLite file at
+    /// `path` so records survive a process restart instead of vanishing
+    /// with the in-memory log `new()` uses.
+    pub fn with_audit_db(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Self> {
+        Ok(Self {
+            traces: Arc::new(Mutex::new(TraceStore::new())),
+            audit: Arc::new(Mutex::new(AuditLog::open(path)?)),
+            policy: Arc::new(Mutex::new(PolicyEngine::new())),
+        })
+    }
+
+    /// Builds from a `ConsoleConfig`: file-backed audit log if
+    /// `audit_db_path` is set, in-memory otherwise.
+    pub fn from_config(cfg: &ConsoleConfig) -> rusqlite::Result<Self> {
+        match &cfg.audit_db_path {
+            Some(path) => Self::with_audit_db(path),
+            None => Ok(Self::new()),
+        }
+    }
 }
 
 impl Default for AppState {
