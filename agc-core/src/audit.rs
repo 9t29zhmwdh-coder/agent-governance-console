@@ -278,6 +278,10 @@ mod tests {
         // proving persistence actually survives the connection (and process) going away.
         let reopened = AuditLog::open(&db_path).unwrap();
         assert_eq!(reopened.record_count(), 1);
+        // Windows locks open files; the connection must close before the
+        // directory can be removed, unlike on POSIX where an unlinked file
+        // stays deletable while still open.
+        drop(reopened);
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
