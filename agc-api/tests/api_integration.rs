@@ -317,6 +317,55 @@ async fn audit_export_csv_has_correct_content_type_and_header() {
 }
 
 #[tokio::test]
+async fn ingest_trace_exports_via_otlp_when_telemetry_is_configured() {
+    // Regression test for a real deadlock found during development: an
+    // earlier OtlpExporter used a synchronous/simple span processor that
+    // did its HTTP export inline on the calling thread, which hung forever
+    // when record_span was invoked from inside an already-running Tokio
+    // runtime (this axum handler, exactly like a real running server).
+    // Wrapped in a timeout so a regression fails fast instead of hanging
+    // the whole test suite again.
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/traces"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let mut cfg = agc_api::default_config();
+        cfg.telemetry.enabled = true;
+        cfg.telemetry.endpoint = Some(format!("{}/v1/traces", server.uri()));
+        cfg.telemetry.service_name = "agc-test".into();
+        let state = AppState::from_config(&cfg).unwrap();
+        assert!(state.otlp.is_some(), "OTLP exporter should have been constructed");
+
+        let app_router = create_router(state);
+        let response = post_json(
+            app_router,
+            "/api/v1/traces",
+            span_json("agent-1", "info", "tool_call", json!({})),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        // Give the batch processor's background thread a moment to flush;
+        // real production traffic doesn't need this, tests polling a mock
+        // server right after the response do.
+        for _ in 0..20 {
+            if !server.received_requests().await.unwrap().is_empty() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 1);
+    })
+    .await
+    .expect("ingest with OTLP telemetry did not complete within 10s");
+}
+
+#[tokio::test]
 async fn app_state_is_isolated_between_instances() {
     let app1 = create_router(AppState::new());
     let app2 = create_router(AppState::new());

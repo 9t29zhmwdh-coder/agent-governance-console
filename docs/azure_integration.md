@@ -2,64 +2,141 @@
 
 ## Overview
 
-AGC supports three Azure integration points, all opt-in:
+AGC supports four Azure integration points, all opt-in and all authenticated
+via **Managed Identity** — no client secret is ever configured:
 
 | Integration | Purpose | Required AAD Permissions |
 |-------------|---------|--------------------------|
-| Azure Monitor (OTLP) | Telemetry span export | `Monitoring Metrics Publisher` |
-| Azure Log Analytics | Audit NDJSON ingest | `Log Analytics Contributor` |
+| Azure Monitor (OTLP) | Telemetry span export | none (endpoint-based, no auth on the OTLP path itself in this release) |
+| Azure Monitor Logs Ingestion | Audit record push to a DCR | `Monitoring Metrics Publisher` on the DCR |
 | Microsoft Graph | Read agent app registrations | `Application.Read.All` |
+| Managed Identity | Token acquisition for the two above | none (identity, not a permission) |
+
+The Rust implementation lives in the `agc-azure` crate:
+`ManagedIdentityCredential`, `MonitorIngestClient`, `GraphClient`,
+`OtlpExporter`. All four are unit- and integration-tested against a local
+mock HTTP server (`wiremock`); **Managed Identity's real endpoint (IMDS,
+`169.254.169.254`) is only reachable from inside an Azure-hosted compute
+resource**, so it cannot be exercised end-to-end from anywhere else,
+including CI. `scripts/azure_setup.sh` is similarly correct-by-construction
+against the documented `az` CLI/DCR contracts but has not been run against
+a live subscription — see its header comment.
 
 ---
 
-## Azure Monitor (OTLP)
+## Setup
 
-### Setup
-
-1. Run `./scripts/azure_setup.sh` to provision the Log Analytics Workspace and Application Insights instance.
-2. Copy the connection string output into your AGC configuration:
-
-```toml
-[telemetry]
-enabled = true
-endpoint = "InstrumentationKey=<key>;IngestionEndpoint=https://<region>.in.applicationinsights.azure.com/"
-service_name = "agc"
-include_agent_ids = false
-```
-
-3. Restart AGC. Spans will appear in Application Insights → Live Metrics.
-
-### OTLP Endpoint (alternative)
-
-Azure Monitor supports native OTLP ingestion (preview):
-```
-https://<region>.otelcollector.azure.com/v1/traces
-```
-Use with a Managed Identity for secretless authentication.
-
----
-
-## Azure Log Analytics: Audit Ingest
-
-Export the audit log as NDJSON and push via the Data Collection Rules (DCR) API:
+Run `./scripts/azure_setup.sh` once, against a resource group where you
+have Contributor rights:
 
 ```bash
-# Export
-./scripts/export_audit.sh ndjson
+AZURE_RG=my-rg AZURE_LOCATION=westeurope ./scripts/azure_setup.sh
+```
 
-# Push to DCR endpoint (replace placeholders)
+It provisions, in order: a Log Analytics Workspace, an Application
+Insights instance, a custom `AGCAudit_CL` table matching
+`agc_core::AuditRecord`, a Data Collection Endpoint (DCE), a Data
+Collection Rule (DCR) routing that table's stream into the workspace, and
+a demo app registration tagged `agc-agent` (so `agc-cli azure list-agents`
+has something real to find). It prints every value the steps below need.
+
+Grant the compute resource running AGC (VM / App Service / Container /
+AKS pod) a **system- or user-assigned managed identity**, then assign it
+`Monitoring Metrics Publisher` on the DCR the script created.
+
+---
+
+## Telemetry: OTLP Span Export
+
+`agc-api` exports spans over real OTLP/HTTP (via `opentelemetry-otlp`,
+`agc_azure::OtlpExporter`) whenever telemetry is enabled with an endpoint:
+
+```bash
+AGC_TELEMETRY_ENDPOINT="https://<region>.otelcollector.azure.com/v1/traces" \
+AGC_TELEMETRY_SERVICE_NAME="agc" \
+cargo run --bin agc-api
+```
+
+`AGC_TELEMETRY_ENDPOINT` must be the **full traces endpoint URL, including
+the `/v1/traces` path** — it's used exactly as given, not treated as a
+base URL. A misconfigured endpoint logs a warning at startup and leaves
+telemetry disabled rather than failing the whole server.
+
+Every successfully ingested trace span (`POST /api/v1/traces`, see
+`docs/api_reference.md`) is exported this way in the background; export
+runs on the OTLP batch processor's own dedicated thread, never blocking
+the request that triggered it.
+
+For a self-hosted OpenTelemetry Collector in front of Application
+Insights instead of Azure Monitor's native OTLP endpoint, point
+`AGC_TELEMETRY_ENDPOINT` at the collector's `/v1/traces` path and use the
+connection string `azure_setup.sh` prints in the collector's own Azure
+Monitor exporter config.
+
+---
+
+## Audit Export: Azure Monitor Logs Ingestion (DCR)
+
+Two steps: export the audit log locally, then push it to Azure with
+Managed Identity authentication (no client secret anywhere in this flow).
+
+```bash
+# 1. Export from a running agc-api instance
+./scripts/export_audit.sh ndjson
+# -> audit-20260717-120000.ndjson
+
+# 2. Push to the DCR azure_setup.sh created (values printed at the end of that script)
+agc-cli azure push-audit \
+  --file audit-20260717-120000.ndjson \
+  --dce-endpoint "https://agc-dce-xxxx.westeurope-1.ingest.monitor.azure.com" \
+  --dcr-id "dcr-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  --stream "Custom-AGCAudit_CL"
+```
+
+`push-audit` acquires a token scoped to `https://monitor.azure.com/` via
+Managed Identity, then POSTs the parsed records as a JSON array to:
+
+```
+{dce-endpoint}/dataCollectionRules/{dcr-id}/streams/{stream}?api-version=2023-01-01
+```
+
+For a user-assigned managed identity, add `--client-id <client-id>` to
+either `agc-cli azure` subcommand.
+
+### Equivalent raw curl (if you'd rather not use agc-cli)
+
+```bash
 curl -X POST \
-  "https://<DCR_ENDPOINT>/dataCollectionRules/<DCR_RULE_ID>/streams/Custom-AGCAudit_CL?api-version=2023-01-01" \
+  "https://<DCE_ENDPOINT>/dataCollectionRules/<DCR_IMMUTABLE_ID>/streams/Custom-AGCAudit_CL?api-version=2023-01-01" \
   -H "Authorization: Bearer $(az account get-access-token --resource https://monitor.azure.com/ --query accessToken -o tsv)" \
   -H "Content-Type: application/json" \
-  --data-binary @audit-$(date +%Y%m%d)*.ndjson
+  --data-binary "[$(paste -sd, audit-20260717-120000.ndjson)]"
 ```
+
+(The Logs Ingestion API expects a JSON array; the local export is NDJSON,
+hence wrapping it with `paste`/`[...]` here — `agc-cli azure push-audit`
+does this conversion for you.)
 
 ---
 
 ## Microsoft Graph: Agent App Registrations
 
-Query the app registrations used as agent identities:
+```bash
+agc-cli azure list-agents
+```
+
+Acquires a token scoped to `https://graph.microsoft.com/` via Managed
+Identity (`Application.Read.All` permission required), then queries:
+
+```
+GET https://graph.microsoft.com/v1.0/applications?$filter=tags/any(t:t eq 'agc-agent')
+```
+
+Tag any app registration you want treated as an AGC agent identity with
+`agc-agent` in Entra ID (`azure_setup.sh` does this for its demo
+registration automatically).
+
+### Equivalent raw az CLI
 
 ```bash
 az rest \
@@ -68,14 +145,23 @@ az rest \
   --resource "https://graph.microsoft.com/"
 ```
 
-Tag agent app registrations with `agc-agent` in Azure AD to enable this query.
-
 ---
 
-## Managed Identity (Recommended for Production)
+## Managed Identity Details
 
-Assign a User-Assigned Managed Identity to the AGC deployment. Grant it:
-- `Monitoring Metrics Publisher` on the Application Insights resource
-- `Log Analytics Contributor` on the workspace
+`agc_azure::ManagedIdentityCredential` requests tokens from Azure's
+Instance Metadata Service (IMDS) at `http://169.254.169.254/metadata/identity/oauth2/token`,
+with a 2-second client timeout (IMDS responds in milliseconds when
+present; off Azure the address is typically silently unroutable rather
+than actively refused, so a short timeout matters — this was a real bug
+found and fixed during development, see the v0.3.0 CHANGELOG entry).
 
-No client secrets or certificate rotation required.
+- **System-assigned identity** (default): no configuration needed beyond
+  assigning the identity to the compute resource and granting it the
+  permissions in the table above.
+- **User-assigned identity**: pass `--client-id <client-id>` to either
+  `agc-cli azure` subcommand.
+
+No client secret, certificate, or connection string is ever read from
+AGC's own configuration for these two integrations — only the Managed
+Identity token flow.

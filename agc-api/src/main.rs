@@ -10,12 +10,23 @@ async fn main() {
     if let Ok(path) = std::env::var("AGC_AUDIT_DB_PATH") {
         cfg.audit_db_path = Some(path.into());
     }
+    if let Ok(endpoint) = std::env::var("AGC_TELEMETRY_ENDPOINT") {
+        cfg.telemetry.enabled = true;
+        cfg.telemetry.endpoint = Some(endpoint);
+        cfg.telemetry.service_name =
+            std::env::var("AGC_TELEMETRY_SERVICE_NAME").unwrap_or_else(|_| "agc".to_string());
+    }
 
     let state = AppState::from_config(&cfg).expect("opening audit database");
     if let Some(path) = &cfg.audit_db_path {
         tracing::info!("Audit log persisted to {}", path.display());
     } else {
         tracing::info!("Audit log is in-memory only (set AGC_AUDIT_DB_PATH to persist)");
+    }
+    if state.otlp.is_some() {
+        tracing::info!("OTLP telemetry export enabled to {}", cfg.telemetry.endpoint.as_deref().unwrap_or(""));
+    } else {
+        tracing::info!("Telemetry is disabled (set AGC_TELEMETRY_ENDPOINT to enable OTLP export)");
     }
     let app = create_router(state);
 
