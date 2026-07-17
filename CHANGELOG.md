@@ -5,6 +5,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.0] - 2026-07-17
+
+Ships the full "v0.2.0: Full REST API" roadmap milestone (released as
+0.3.0, a Minor bump, since patch releases had already advanced the
+version past 0.2.0 before this work landed).
+
+### Added
+- `POST /api/v1/traces`: ingest a `TraceSpan`, gated by real-time policy evaluation.
+- `GET /api/v1/traces/{trace_id}`: retrieve every span for a trace, 404 if none exist.
+- `POST /api/v1/policies`: load a `GovernancePolicy` into the running engine.
+- `GET /api/v1/audit?limit=&offset=`: paginated audit log query with total count.
+- `GET /api/v1/audit/export.ndjson` and `/export.csv`: streaming audit export with correct content types.
+- `PolicyCondition::matches` and `PolicyEngine::evaluate`: real condition evaluation (span level threshold, token budget read from the `tokens` span attribute, single-wildcard operation glob), replacing the previous scope-only stub. A matched `Block` rule now rejects the span with `403` and it is never stored; `Warn`/`Alert` rules record an audit entry and let the span through.
+- `AuditLog::list_paginated`: SQLite-backed paginated query, ordered oldest-first.
+- 15 new API integration tests and 7 new core unit tests covering the policy gate, pagination, and export content types.
+
+### Changed
+- README (EN/DE) and `docs/api_reference.md` updated to describe the now-implemented endpoints and policy condition/action schema, with a worked curl example for the policy gate.
+
 ## [0.2.1] - 2026-07-17
 
 ### Changed

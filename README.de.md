@@ -29,21 +29,21 @@ Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.micros
 
 ## Übersicht
 
-Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-api`, `agc-cli`) zur Steuerung, Beobachtung und Überprüfung von AI-Agent-Workflows. Die Core-Bibliothek modelliert Trace-Spans, Governance-Policies und Audit-Records bereits mit getesteter API; die REST-API bietet aktuell nur schreibgeschützte Health- und Zähl-Endpunkte, Ingestion, Policy-Laden und Audit-Export sind für v0.2.0 geplant (siehe [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel und Entra ID sind für v0.3.0+ geplant und noch nicht umgesetzt.
+Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-api`, `agc-cli`) zur Steuerung, Beobachtung und Überprüfung von AI-Agent-Workflows. Die Core-Bibliothek modelliert Trace-Spans, Governance-Policies und Audit-Records mit getesteter API; die REST-API unterstützt jetzt volle Trace-Ingestion mit Echtzeit-Policy-Gate, Policy-Laden und paginierte/streambare Audit-Abfragen (siehe [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel und Entra ID sind für v0.3.0+ geplant und noch nicht umgesetzt.
 
-**In der Praxis:** Aktuell bekommst du eine getestete Rust-Bibliothek zur Modellierung von Agent-Traces, -Policies und -Audit-Records, plus eine REST-API die meldet, wie viele davon geladen sind. Das ist eine Grundlage zum Weiterbauen, noch keine fertige Governance-Schicht für produktiven Agent-Traffic.
+**In der Praxis:** Du kannst eine Governance-Policy laden, Agent-Trace-Spans dagegen posten und zutreffende Regeln in Echtzeit warnen, blockieren oder (protokolliert, noch nicht extern ausgeliefert) alarmieren lassen, wobei jede Entscheidung in einem abfragbaren, exportierbaren Audit-Log landet. Das ist ein echtes, funktionierendes Policy-Gate für einen einzelnen Prozess; Multi-Tenant-Isolation, RBAC und Azure-native Zustellung stehen noch auf der Roadmap.
 
 ## Funktionen
 
 | Funktion | Status |
 |----------|--------|
 | **Trace-Modell** (`TraceSpan`, `TraceStore`) | Verfügbar: In-Memory-Store, sortierte Ingestion, getestet |
-| **Audit-Modell** (`AuditRecord`, `AuditLog`) | Verfügbar: SQLite-basiert (standardmässig im Speicher, oder persistent über `AGC_AUDIT_DB_PATH`/`AppState::with_audit_db`), NDJSON-/CSV-Export-Methoden, getestet (noch nicht über API) |
-| **Policy-Modell** (`GovernancePolicy`, `PolicyRule`) | Verfügbar: nur Datenmodell, Regelauswertung ist bis v0.2.0 ein Stub |
-| **REST-API** | Verfügbar: `/health`, `/api/v1/traces/count`, `/api/v1/audit/count`, `/api/v1/policies/count` |
-| **Trace-Ingestion via API** | Geplant v0.2.0: `POST /api/v1/traces` |
-| **Policy-Laden & Auswertung via API** | Geplant v0.2.0: `POST /api/v1/policies`, Echtzeit-Gating |
-| **Audit-Export via API** | Geplant v0.2.0: `GET /api/v1/audit/export.ndjson` / `.csv` |
+| **Audit-Modell** (`AuditRecord`, `AuditLog`) | Verfügbar: SQLite-basiert (standardmässig im Speicher, oder persistent über `AGC_AUDIT_DB_PATH`/`AppState::with_audit_db`), NDJSON-/CSV-Export, paginierte Abfrage, getestet und über API erreichbar |
+| **Policy-Modell** (`GovernancePolicy`, `PolicyRule`) | Verfügbar: echte Bedingungsauswertung (Span-Level, Token-Budget, Operation-Glob), kein reines Datenmodell mehr |
+| **Trace-Ingestion via API** | Verfügbar: `POST /api/v1/traces`, `GET /api/v1/traces/{trace_id}` |
+| **Policy-Laden & Echtzeit-Gating via API** | Verfügbar: `POST /api/v1/policies`; jeder aufgenommene Span wird gegen geladene Policies ausgewertet, `block`-Regeln lehnen den Span mit `403` ab |
+| **Audit-Abfrage & -Export via API** | Verfügbar: `GET /api/v1/audit?limit=&offset=`, `GET /api/v1/audit/export.ndjson` / `.csv` |
+| **REST-API** | `/health`, `/api/v1/traces`, `/api/v1/traces/count`, `/api/v1/traces/{trace_id}`, `/api/v1/audit`, `/api/v1/audit/count`, `/api/v1/audit/export.ndjson`, `/api/v1/audit/export.csv`, `/api/v1/policies`, `/api/v1/policies/count` |
 | **Azure Monitor / Sentinel / Entra ID** | Geplant ab v0.3.0, siehe [ROADMAP.md](ROADMAP.md) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
@@ -69,7 +69,7 @@ AGC_AUDIT_DB_PATH=./agc-audit.sqlite cargo run --bin agc-api
 # Health-Check
 curl http://127.0.0.1:8080/health
 
-# Zähler (alle 0 bis Ingestion in v0.2.0 kommt)
+# Zähler
 curl http://127.0.0.1:8080/api/v1/traces/count
 curl http://127.0.0.1:8080/api/v1/audit/count
 curl http://127.0.0.1:8080/api/v1/policies/count
@@ -78,9 +78,41 @@ curl http://127.0.0.1:8080/api/v1/policies/count
 cargo test --workspace
 ```
 
+### Das Policy-Gate ausprobieren
+
+```bash
+# Policy laden, die alles ab Error-Level blockiert
+curl -X POST http://127.0.0.1:8080/api/v1/policies -H "content-type: application/json" -d '{
+  "policy_id": "p1", "name": "Error gate", "agent_scope": [],
+  "rules": [{"rule_id": "r1", "description": "Block on error",
+    "condition": {"type": "span_level_at_least", "level": "error"},
+    "action": {"type": "block", "reason": "too severe"}}]
+}'
+
+# Dieser Span wird normal aufgenommen (201)
+curl -X POST http://127.0.0.1:8080/api/v1/traces -H "content-type: application/json" -d '{
+  "span_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "trace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa7",
+  "parent_span_id": null, "agent_id": "agent-1", "operation": "tool_call", "level": "info",
+  "started_at": "2026-07-17T12:00:00Z", "ended_at": null, "attributes": {}
+}'
+
+# Dieser wird vom Policy-Gate abgelehnt (403) und nie gespeichert
+curl -X POST http://127.0.0.1:8080/api/v1/traces -H "content-type: application/json" -d '{
+  "span_id": "3fa85f64-5717-4562-b3fc-2c963f66afa8", "trace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa7",
+  "parent_span_id": null, "agent_id": "agent-1", "operation": "risky_call", "level": "error",
+  "started_at": "2026-07-17T12:00:01Z", "ended_at": null, "attributes": {}
+}'
+
+# Die Block-Entscheidung steht im Audit-Log
+curl http://127.0.0.1:8080/api/v1/audit
+curl http://127.0.0.1:8080/api/v1/audit/export.csv
+```
+
+Vollständige Endpunkt- und Policy-Schema-Referenz: [docs/api_reference.md](docs/api_reference.md).
+
 ## Deinstallation / Datenbereinigung
 
-`agc-api` hält alles im Arbeitsspeicher: Stoppen des Prozesses (Ctrl-C) entfernt alle aufgenommenen Daten, es bleibt nichts auf der Platte zurück. Lösche `target/` um Build-Cache-Speicherplatz freizugeben.
+Standardmässig hält `agc-api` alles im Arbeitsspeicher: Stoppen des Prozesses (Ctrl-C) entfernt alle aufgenommenen Daten, es bleibt nichts auf der Platte zurück. Falls du mit gesetztem `AGC_AUDIT_DB_PATH` gestartet hast, bleibt das Audit-Log in dieser SQLite-Datei erhalten; lösche sie, um die Audit-Historie zu leeren. Lösche `target/` um Build-Cache-Speicherplatz freizugeben.
 
 ## Dokumentation
 

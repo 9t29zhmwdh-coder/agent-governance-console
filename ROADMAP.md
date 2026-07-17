@@ -12,14 +12,20 @@
 - Bilingual README (EN / DE)
 - Full documentation skeleton
 
-## v0.2.0 : Full REST API
+## v0.2.0 : Full REST API ✅
 
-- [ ] POST `/api/v1/traces` (ingest span)
-- [ ] GET `/api/v1/traces/{trace_id}` (retrieve full trace)
-- [ ] POST `/api/v1/policies` (load policy JSON)
-- [ ] GET `/api/v1/audit` (paginated audit log query)
-- [ ] GET `/api/v1/audit/export.csv` and `/export.ndjson` (streaming export)
-- [ ] Policy evaluation on every ingested span (real-time gate)
+Shipped as v0.3.0 (not v0.2.0): the version had already advanced past 0.2.0
+via unrelated patch releases by the time this milestone's features landed,
+so per this portfolio's own SemVer discipline the release became a Minor
+bump to the next available version instead of a downgrade. All items below
+are complete regardless of the release number.
+
+- [x] POST `/api/v1/traces` (ingest span)
+- [x] GET `/api/v1/traces/{trace_id}` (retrieve full trace)
+- [x] POST `/api/v1/policies` (load policy JSON)
+- [x] GET `/api/v1/audit` (paginated audit log query)
+- [x] GET `/api/v1/audit/export.csv` and `/export.ndjson` (streaming export)
+- [x] Policy evaluation on every ingested span (real-time gate): `SpanLevelAtLeast`, `TokenBudgetExceeded` (reads the `tokens` span attribute), `OperationMatches` (single-wildcard glob) all have real evaluation logic now, not stubs; a matched `Block` rule rejects the span with `403` and it is never stored
 - [x] SQLite persistence for audit log (`rusqlite`): `AuditLog::open(path)` for a real file, `AuditLog::new()` still in-memory by default; wired into the running server via `AGC_AUDIT_DB_PATH` / `AppState::with_audit_db`/`from_config`
 
 ## v0.3.0 : Azure Integration
