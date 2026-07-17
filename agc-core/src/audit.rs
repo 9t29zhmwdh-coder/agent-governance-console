@@ -163,6 +163,21 @@ impl AuditLog {
         out
     }
 
+    /// Paginated query over all records, ordered oldest-first, alongside the
+    /// total record count (for computing `has_more`/page counts client-side).
+    pub fn list_paginated(&self, limit: usize, offset: usize) -> (Vec<AuditRecord>, usize) {
+        let total = self.record_count();
+        let sql = "SELECT id, timestamp, agent_id, action, outcome, policy_id, details
+                   FROM audit_records ORDER BY timestamp ASC LIMIT ?1 OFFSET ?2";
+        let Ok(mut stmt) = self.conn.prepare(sql) else { return (vec![], total) };
+        let mapped = stmt.query_map(params![limit as i64, offset as i64], row_to_record);
+        let records = match mapped {
+            Ok(rows) => rows.filter_map(Result::ok).collect(),
+            Err(_) => vec![],
+        };
+        (records, total)
+    }
+
     pub fn records_for_agent(&self, agent_id: &str) -> Vec<AuditRecord> {
         self.query_records("WHERE agent_id = ?1", Some(agent_id))
     }
@@ -284,6 +299,27 @@ mod tests {
         drop(reopened);
 
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn list_paginated_slices_and_reports_total() {
+        let mut log = AuditLog::new();
+        for i in 0..5 {
+            let mut r = sample("agent-1", AuditOutcome::Allowed);
+            r.timestamp = Utc::now() + chrono::Duration::seconds(i);
+            log.append(r);
+        }
+        let (page1, total) = log.list_paginated(2, 0);
+        assert_eq!(total, 5);
+        assert_eq!(page1.len(), 2);
+
+        let (page2, total2) = log.list_paginated(2, 2);
+        assert_eq!(total2, 5);
+        assert_eq!(page2.len(), 2);
+        assert_ne!(page1[0].id, page2[0].id);
+
+        let (last_page, _) = log.list_paginated(2, 4);
+        assert_eq!(last_page.len(), 1);
     }
 
     #[test]

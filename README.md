@@ -28,9 +28,9 @@ Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com
 
 ## Overview
 
-Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `agc-api`, `agc-cli`) for governing, observing and auditing AI agent workflows. The core library already models trace spans, governance policies and audit records with a tested API; the REST API currently exposes read-only health and count endpoints, with ingestion, policy loading and audit export planned for v0.2.0 (see [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel and Entra ID integration are planned for v0.3.0+ and not implemented yet.
+Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `agc-api`, `agc-cli`) for governing, observing and auditing AI agent workflows. The core library models trace spans, governance policies and audit records with a tested API; the REST API now supports full trace ingestion with a real-time policy gate, policy loading, and paginated/streaming audit queries (see [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel and Entra ID integration are planned for v0.3.0+ and not implemented yet.
 
-**In practice:** today you get a tested Rust library for modeling agent traces, policies and audit records, plus a REST API that reports how many of each have been loaded. It is a foundation to build on, not yet a drop-in governance layer for production agent traffic.
+**In practice:** you can load a governance policy, POST agent trace spans against it, and have matching rules warn, block, or (recorded, not yet externally delivered) alert in real time, with every decision written to a queryable, exportable audit log. It is a real, working policy gate for a single process; multi-tenant isolation, RBAC and Azure-native delivery are still ahead on the roadmap.
 
 ---
 
@@ -39,12 +39,12 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | Feature | Status |
 |---------|--------|
 | **Trace model** (`TraceSpan`, `TraceStore`) | Available: in-memory store, sorted ingestion, tested |
-| **Audit model** (`AuditRecord`, `AuditLog`) | Available: SQLite-backed (in-memory by default, or a real file via `AGC_AUDIT_DB_PATH`/`AppState::with_audit_db`), NDJSON/CSV export methods, tested (not yet exposed via API) |
-| **Policy model** (`GovernancePolicy`, `PolicyRule`) | Available: data model only; rule evaluation is a stub until v0.2.0 |
-| **REST API** | Available now: `/health`, `/api/v1/traces/count`, `/api/v1/audit/count`, `/api/v1/policies/count` |
-| **Trace ingestion via API** | Planned v0.2.0: `POST /api/v1/traces` |
-| **Policy loading & evaluation via API** | Planned v0.2.0: `POST /api/v1/policies`, real-time gating |
-| **Audit export via API** | Planned v0.2.0: `GET /api/v1/audit/export.ndjson` / `.csv` |
+| **Audit model** (`AuditRecord`, `AuditLog`) | Available: SQLite-backed (in-memory by default, or a real file via `AGC_AUDIT_DB_PATH`/`AppState::with_audit_db`), NDJSON/CSV export, paginated query, tested and exposed via API |
+| **Policy model** (`GovernancePolicy`, `PolicyRule`) | Available: real condition evaluation (span level, token budget, operation glob), not just a data model |
+| **Trace ingestion via API** | Available: `POST /api/v1/traces`, `GET /api/v1/traces/{trace_id}` |
+| **Policy loading & real-time gating via API** | Available: `POST /api/v1/policies`; every ingested span is evaluated against loaded policies, `block` rules reject the span with `403` |
+| **Audit query & export via API** | Available: `GET /api/v1/audit?limit=&offset=`, `GET /api/v1/audit/export.ndjson` / `.csv` |
+| **REST API** | `/health`, `/api/v1/traces`, `/api/v1/traces/count`, `/api/v1/traces/{trace_id}`, `/api/v1/audit`, `/api/v1/audit/count`, `/api/v1/audit/export.ndjson`, `/api/v1/audit/export.csv`, `/api/v1/policies`, `/api/v1/policies/count` |
 | **Azure Monitor / Sentinel / Entra ID** | Planned v0.3.0+, see [ROADMAP.md](ROADMAP.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
@@ -74,7 +74,7 @@ AGC_AUDIT_DB_PATH=./agc-audit.sqlite cargo run --bin agc-api
 # Health check
 curl http://127.0.0.1:8080/health
 
-# Counts (all zero until ingestion lands in v0.2.0)
+# Counts
 curl http://127.0.0.1:8080/api/v1/traces/count
 curl http://127.0.0.1:8080/api/v1/audit/count
 curl http://127.0.0.1:8080/api/v1/policies/count
@@ -83,11 +83,43 @@ curl http://127.0.0.1:8080/api/v1/policies/count
 cargo test --workspace
 ```
 
+### Try the policy gate
+
+```bash
+# Load a policy that blocks anything at error level
+curl -X POST http://127.0.0.1:8080/api/v1/policies -H "content-type: application/json" -d '{
+  "policy_id": "p1", "name": "Error gate", "agent_scope": [],
+  "rules": [{"rule_id": "r1", "description": "Block on error",
+    "condition": {"type": "span_level_at_least", "level": "error"},
+    "action": {"type": "block", "reason": "too severe"}}]
+}'
+
+# This span is ingested normally (201)
+curl -X POST http://127.0.0.1:8080/api/v1/traces -H "content-type: application/json" -d '{
+  "span_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6", "trace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa7",
+  "parent_span_id": null, "agent_id": "agent-1", "operation": "tool_call", "level": "info",
+  "started_at": "2026-07-17T12:00:00Z", "ended_at": null, "attributes": {}
+}'
+
+# This one is rejected by the policy gate (403), and never stored
+curl -X POST http://127.0.0.1:8080/api/v1/traces -H "content-type: application/json" -d '{
+  "span_id": "3fa85f64-5717-4562-b3fc-2c963f66afa8", "trace_id": "3fa85f64-5717-4562-b3fc-2c963f66afa7",
+  "parent_span_id": null, "agent_id": "agent-1", "operation": "risky_call", "level": "error",
+  "started_at": "2026-07-17T12:00:01Z", "ended_at": null, "attributes": {}
+}'
+
+# The block decision is in the audit log
+curl http://127.0.0.1:8080/api/v1/audit
+curl http://127.0.0.1:8080/api/v1/audit/export.csv
+```
+
+Full endpoint and policy schema reference: [docs/api_reference.md](docs/api_reference.md).
+
 ---
 
 ## Uninstall / Cleanup
 
-`agc-api` keeps everything in memory: stopping the process (Ctrl-C) removes all ingested data, there is nothing to clean up on disk. Delete the `target/` build directory to reclaim build cache space.
+By default `agc-api` keeps everything in memory: stopping the process (Ctrl-C) removes all ingested data, there is nothing to clean up on disk. If you started it with `AGC_AUDIT_DB_PATH` set, the audit log persists in that SQLite file; delete it to clear audit history. Delete the `target/` build directory to reclaim build cache space.
 
 ---
 
