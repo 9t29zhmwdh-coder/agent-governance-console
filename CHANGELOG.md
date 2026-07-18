@@ -5,6 +5,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.7.0] - 2026-07-18
+
+Ships the "Role-based access control for REST API (JWT / AAD tokens)"
+item from ROADMAP.md's "v1.0.0: Enterprise GA" milestone (item 2 of 8).
+
+### Added
+- `agc-api::auth` module: `AuthConfig::Hmac` (HS256, shared secret) and `AuthConfig::Aad` (RS256, Entra ID JWKS) bearer-token validation, plus `AuthConfig::Disabled` (the default) which treats every request as `Admin`, identical to this API's behavior before RBAC existed.
+- Every trace/audit/policy endpoint now checks the caller's role: `Viewer` for GET endpoints, `Admin` for `POST /api/v1/traces` and `POST /api/v1/policies`. Missing/malformed token: `401`. Insufficient role: `403`.
+- `AGC_JWT_SECRET` env var enables HS256 mode; `AGC_AAD_TENANT_ID` (+ optional `AGC_AAD_AUDIENCE`, default `api://agc`) enables Entra ID mode. Neither set: RBAC stays off.
+- 12 new tests: 10 unit tests in `agc-api::auth` (including a real RSA keypair signing a real RS256 JWT, verified against a real JWKS document served by a mock HTTP server -- not just that the code compiles) and 4 new end-to-end integration tests (no-token rejection, viewer-vs-admin write gating, RBAC-disabled-by-default).
+
+### Fixed
+- A real validation bug found while writing the first tests: `jsonwebtoken`'s default `Validation` requires an `exp` claim to even be *present*, which rejected every valid, correctly-signed test token that didn't happen to carry one. Cleared `required_spec_claims` so `exp` is optional, while still enforcing it (rejecting an actually-expired token) whenever it *is* present -- verified by a dedicated test with a real expired-in-1970 token.
+
+### Known limitation
+- The Entra ID (AAD) mode's real JWKS endpoint and token issuance have not been exercised against a live Entra ID tenant (none was available while building this) -- the fetch/`kid`-lookup/RS256-verify path is proven against a real mock HTTP server instead, same disclosed-limitation pattern as `agc_azure::ManagedIdentityCredential`.
+
 ## [0.6.0] - 2026-07-18
 
 Ships the "Multi-tenant mode" item from ROADMAP.md's "v1.0.0: Enterprise

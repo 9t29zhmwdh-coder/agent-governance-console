@@ -31,7 +31,7 @@ Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.micros
 
 Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-api`, `agc-cli`, `agc-azure`) zur Steuerung, Beobachtung und Überprüfung von AI-Agent-Workflows. Die Core-Bibliothek modelliert Trace-Spans, Governance-Policies und Audit-Records mit getesteter API; die REST-API unterstützt volle Trace-Ingestion mit Echtzeit-Policy-Gate, Policy-Laden und paginierte/streambare Audit-Abfragen; und die Azure-Integration (OTLP-Telemetrie-Export, Managed-Identity-authentifizierter Audit-Push zu Azure Monitor, Microsoft-Graph-Agent-Lookup) ist real umgesetzt, nicht nur geplant (siehe [ROADMAP.md](ROADMAP.md)).
 
-**In der Praxis:** Du kannst eine Governance-Policy laden, Agent-Trace-Spans dagegen posten und zutreffende Regeln in Echtzeit warnen, blockieren oder (protokolliert, noch nicht extern ausgeliefert) alarmieren lassen, wobei jede Entscheidung in einem abfragbaren, exportierbaren Audit-Log landet, das sich zu Azure Monitor pushen lässt. Trace- und Audit-Daten sind pro Tenant isoliert (`X-Tenant-Id`, je eigener Store); Policies bleiben geteilte Governance über alle Tenants hinweg. RBAC für die REST-API selbst steht noch auf der Roadmap.
+**In der Praxis:** Du kannst eine Governance-Policy laden, Agent-Trace-Spans dagegen posten und zutreffende Regeln in Echtzeit warnen, blockieren oder (protokolliert, noch nicht extern ausgeliefert) alarmieren lassen, wobei jede Entscheidung in einem abfragbaren, exportierbaren Audit-Log landet, das sich zu Azure Monitor pushen lässt. Trace- und Audit-Daten sind pro Tenant isoliert (`X-Tenant-Id`, je eigener Store); Policies bleiben geteilte Governance über alle Tenants hinweg. Optionales RBAC (`Authorization: Bearer <JWT>`, HS256 oder Entra ID) schützt Schreibzugriffe mit einer `Admin`-Rolle.
 
 ## Funktionen
 
@@ -51,7 +51,8 @@ Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-
 | **YAML-Policy-DSL** | Verfügbar: `GovernancePolicy::from_yaml` parst YAML oder JSON (ein Parser, YAML ist ein JSON-Superset); `agc-cli policy validate` für Offline-Checks |
 | **Policy-Hot-Reload** | Verfügbar: `AGC_POLICY_DIR` lädt und aktualisiert jede Policy-Datei in einem Verzeichnis live; ein fehlerhafter Edit behält den vorherigen Policy-Stand statt ihn zu löschen |
 | **OPA/Rego-Export** | Verfügbar: `agc-cli policy to-rego` rendert einen strukturellen Rego-Stub pro Policy — ein Ausgangspunkt zum manuellen Portieren, keine vollständige semantische Übersetzung |
-| **Microsoft Sentinel / REST-API-Auth** | Geplant ab v1.0.0, siehe [ROADMAP.md](ROADMAP.md) |
+| **RBAC für REST-API** | Verfügbar: `AGC_JWT_SECRET` (HS256) oder `AGC_AAD_TENANT_ID` (Entra ID RS256) schützt Schreibzugriffe mit `Admin`, Lesezugriffe brauchen `Viewer`; opt-in, standardmässig aus |
+| **Microsoft-Sentinel-Export** | Geplant ab v1.0.0, siehe [ROADMAP.md](ROADMAP.md) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
 
@@ -154,6 +155,22 @@ AGC_POLICY_DIR=./policies cargo run --bin agc-api
 # Portieren ist)
 cargo run --bin agc-cli -- policy to-rego ./policies/block-errors.yaml
 ```
+
+### RBAC ausprobieren (optional)
+
+```bash
+# HS256-JWT-Auth mit geteiltem Secret aktivieren
+AGC_JWT_SECRET=s3cret cargo run --bin agc-api
+
+# Kein Token: 401
+curl -w "\nHTTP %{http_code}\n" http://127.0.0.1:8080/api/v1/traces/count -H "X-Tenant-Id: tenant-a"
+
+# Ein Viewer-Token kann lesen, aber nicht schreiben (403 bei POST)
+# Ein Admin-Token kann beides -- erzeuge eines mit einer beliebigen
+# HS256-JWT-Bibliothek, gleiches Secret, Payload {"roles": ["admin"]}.
+```
+
+Oder `AGC_AAD_TENANT_ID` (+ optional `AGC_AAD_AUDIENCE`) auf einen echten Entra-ID-Tenant statt ein geteiltes Secret zeigen — vollständige RBAC-Sektion in `docs/api_reference.md`.
 
 ### Die Azure-Integration ausprobieren (optional)
 

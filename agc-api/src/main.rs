@@ -1,4 +1,4 @@
-use agc_api::{create_router, default_config, spawn_policy_hot_reload, AppState};
+use agc_api::{create_router, default_config, spawn_policy_hot_reload, AppState, AuthConfig};
 
 #[tokio::main]
 async fn main() {
@@ -17,7 +17,17 @@ async fn main() {
             std::env::var("AGC_TELEMETRY_SERVICE_NAME").unwrap_or_else(|_| "agc".to_string());
     }
 
-    let state = AppState::from_config(&cfg);
+    let mut state = AppState::from_config(&cfg);
+    if let Ok(secret) = std::env::var("AGC_JWT_SECRET") {
+        state.auth = AuthConfig::hmac(secret);
+        tracing::info!("RBAC enabled: HS256 JWT, shared secret");
+    } else if let Ok(tenant_id) = std::env::var("AGC_AAD_TENANT_ID") {
+        let audience = std::env::var("AGC_AAD_AUDIENCE").unwrap_or_else(|_| "api://agc".to_string());
+        state.auth = AuthConfig::aad(&tenant_id, audience);
+        tracing::info!("RBAC enabled: Entra ID (AAD) RS256 JWT, tenant {tenant_id}");
+    } else {
+        tracing::info!("RBAC is disabled (set AGC_JWT_SECRET or AGC_AAD_TENANT_ID to enable)");
+    }
     if let Some(dir) = &cfg.audit_db_dir {
         tracing::info!("Each tenant's audit log persists under {} (created on first use)", dir.display());
     } else {

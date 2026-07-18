@@ -27,6 +27,46 @@ Lists every tenant ID that has made at least one request so far
 { "tenants": ["tenant-a", "tenant-b"] }
 ```
 
+## RBAC (opt-in)
+
+With `AGC_JWT_SECRET` or `AGC_AAD_TENANT_ID` set, every trace/audit/policy
+endpoint requires `Authorization: Bearer <token>`:
+
+- **Reads** (`GET` endpoints) need at least the `Viewer` role.
+- **Writes** (`POST /api/v1/traces`, `POST /api/v1/policies`) need the `Admin` role.
+- Missing or malformed header: `401`. Valid token, insufficient role: `403`.
+
+With neither env var set, RBAC is off and every request is treated as
+`Admin` — identical to this API's behavior before RBAC existed.
+
+### Modes
+
+| Mode | Env vars | Algorithm | Role claim |
+|------|----------|-----------|------------|
+| HS256 (shared secret) | `AGC_JWT_SECRET` | HS256 | `roles` array in the JWT payload, e.g. `{"roles": ["admin"]}` |
+| Entra ID (AAD) | `AGC_AAD_TENANT_ID`, `AGC_AAD_AUDIENCE` (default `api://agc`) | RS256, verified against the tenant's JWKS (`https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys`) | `roles` claim on the token (app roles from a client-credentials/app-only token; group-based roles would need a separate Graph call this crate doesn't make) |
+
+Unrecognized role strings never grant `Admin` (fail-safe to `Viewer`).
+`exp`, if present, is enforced (an expired token is rejected); it's not
+required to be present at all, so short-lived and long-lived tokens both
+work.
+
+Responses:
+
+```json
+// 401
+{ "error": "unauthorized", "reason": "missing or malformed Authorization: Bearer <token> header" }
+// 403
+{ "error": "forbidden", "reason": "requires at least Admin role" }
+```
+
+**What's verified vs. not**: the HS256 path is tested against real signed
+tokens. The AAD/JWKS path's fetch-`kid`-lookup-RS256-verify pipeline is
+tested against a real mock JWKS server with a real RSA-signed token, but
+has not been exercised against a live Entra ID tenant (none was
+available while building this) — same disclosed limitation as
+`agc_azure::ManagedIdentityCredential`, see `docs/azure_integration.md`.
+
 ## Endpoints
 
 ### GET /health

@@ -517,3 +517,114 @@ async fn policies_stay_global_across_tenants() {
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "policy should gate tenant {tenant} too");
     }
 }
+
+fn hmac_jwt(secret: &str, roles: &[&str]) -> String {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    jsonwebtoken::encode(
+        &Header::new(Algorithm::HS256),
+        &json!({"roles": roles}),
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .unwrap()
+}
+
+async fn post_tenant_json_authed(
+    app: axum::Router,
+    uri: &str,
+    tenant: &str,
+    bearer: Option<&str>,
+    body: serde_json::Value,
+) -> axum::response::Response {
+    let mut req = Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header("content-type", "application/json")
+        .header("X-Tenant-Id", tenant);
+    if let Some(token) = bearer {
+        req = req.header("Authorization", format!("Bearer {token}"));
+    }
+    app.oneshot(req.body(Body::from(body.to_string())).unwrap()).await.unwrap()
+}
+
+#[tokio::test]
+async fn rbac_rejects_write_without_a_token_when_enabled() {
+    let mut state = AppState::new();
+    state.auth = agc_api::AuthConfig::hmac("s3cret");
+    let app_router = create_router(state);
+
+    let response = post_tenant_json_authed(
+        app_router,
+        "/api/v1/traces",
+        TENANT,
+        None,
+        span_json("agent-1", "info", "tool_call", json!({})),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn rbac_rejects_write_with_only_viewer_role() {
+    let mut state = AppState::new();
+    state.auth = agc_api::AuthConfig::hmac("s3cret");
+    let app_router = create_router(state);
+    let token = hmac_jwt("s3cret", &["viewer"]);
+
+    let response = post_tenant_json_authed(
+        app_router,
+        "/api/v1/traces",
+        TENANT,
+        Some(&token),
+        span_json("agent-1", "info", "tool_call", json!({})),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn rbac_allows_write_with_admin_role_and_read_with_viewer_role() {
+    let mut state = AppState::new();
+    state.auth = agc_api::AuthConfig::hmac("s3cret");
+    let app_router = create_router(state);
+    let admin_token = hmac_jwt("s3cret", &["admin"]);
+    let viewer_token = hmac_jwt("s3cret", &["viewer"]);
+
+    let ingest = post_tenant_json_authed(
+        app_router.clone(),
+        "/api/v1/traces",
+        TENANT,
+        Some(&admin_token),
+        span_json("agent-1", "info", "tool_call", json!({})),
+    )
+    .await;
+    assert_eq!(ingest.status(), StatusCode::CREATED);
+
+    let count = app_router
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/traces/count")
+                .header("X-Tenant-Id", TENANT)
+                .header("Authorization", format!("Bearer {viewer_token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(count.status(), StatusCode::OK);
+    assert_eq!(body_json(count).await["span_count"], 1);
+}
+
+#[tokio::test]
+async fn rbac_is_disabled_by_default_and_every_request_works_unauthenticated() {
+    // AppState::new()'s default AuthConfig::Disabled must behave exactly
+    // like this API did before RBAC existed -- every other test in this
+    // file already relies on that, this test asserts it explicitly.
+    let response = post_tenant_json(
+        app().await,
+        "/api/v1/traces",
+        TENANT,
+        span_json("agent-1", "info", "tool_call", json!({})),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+}
