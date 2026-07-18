@@ -729,3 +729,33 @@ async fn compliance_report_requires_a_tenant_header() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test]
+async fn dashboard_serves_real_html_that_calls_every_rest_endpoint_it_needs() {
+    // Not a browser render (none available in this environment), but a
+    // real proof the served page is the actual dashboard, not a stub: it
+    // requires no tenant header and no auth (it's a static asset; the
+    // fetch() calls it makes from the browser hit the already-gated real
+    // endpoints), and its JS references every endpoint it depends on.
+    let response = app()
+        .await
+        .oneshot(Request::builder().uri("/dashboard").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers().get("content-type").unwrap(), "text/html; charset=utf-8");
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("<title>Agent Governance Console</title>"));
+    for endpoint in [
+        "/health",
+        "/api/v1/tenants",
+        "/api/v1/policies/count",
+        "/api/v1/traces/count",
+        "/api/v1/audit?limit=",
+        "/api/v1/compliance/report",
+    ] {
+        assert!(html.contains(endpoint), "dashboard JS should call {endpoint}");
+    }
+}

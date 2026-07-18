@@ -16,7 +16,7 @@ Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com
 
 [![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions) ![Azure Ready](https://img.shields.io/badge/Azure-Ready-0078d4?logo=microsoftazure&logoColor=white) ![Platform](https://img.shields.io/badge/Platform-Windows_%7C_Ubuntu-lightgrey) ![Rust](https://img.shields.io/badge/Rust-CE422B?logo=rust&logoColor=white) ![AI | Claude Code](https://img.shields.io/badge/AI-Claude_Code-black?logo=anthropic&logoColor=white) ![AI | Copilot](https://img.shields.io/badge/AI-Copilot-black?logo=github&logoColor=white) [![Release](https://img.shields.io/github/v/release/9t29zhmwdh-coder/agent-governance-console?color=3F8E7E)](https://github.com/9t29zhmwdh-coder/agent-governance-console/releases) [![License](https://img.shields.io/github/license/9t29zhmwdh-coder/agent-governance-console?color=lightgrey)](LICENSE)
 
-> **How it runs:** AGC is not a hosted service and not a desktop app. `agc-api` is a small REST API server you run yourself with `cargo run`, on `127.0.0.1:8080` by default. There is no installer and nothing runs in the background; you start and stop the process yourself.
+> **How it runs:** AGC is not a hosted service and not a desktop app. `agc-api` is a small REST API server you run yourself with `cargo run`, on `127.0.0.1:8080` by default. There is no installer and nothing runs in the background; you start and stop the process yourself. Open `http://127.0.0.1:8080/dashboard` in a browser for a lightweight UI over the same API.
 
 ![Agent Governance Console](docs/screenshot.png)
 
@@ -55,6 +55,7 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **RBAC for REST API** | Available: `AGC_JWT_SECRET` (HS256) or `AGC_AAD_TENANT_ID` (Entra ID RS256) gates writes to `Admin`, reads need `Viewer`; opt-in, off by default |
 | **Microsoft Sentinel export** | Available: `agc-cli sentinel export --format kql\|arm` generates 4 built-in analytics rule templates from AGC's audit table, as KQL files or a deployable ARM template — see [docs/sentinel.md](docs/sentinel.md) |
 | **Compliance report export** | Available: `GET /api/v1/compliance/report` (Markdown or `?format=json`), reporting against 4 of Microsoft's 6 Responsible AI principles from real tenant audit/trace data — see [docs/compliance.md](docs/compliance.md) |
+| **Dashboard UI** | Available: `GET /dashboard`, a self-contained static page (no build step) covering health, tenants, policies, per-tenant traces, a paginated audit table, and the compliance report — see [docs/dashboard.md](docs/dashboard.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 

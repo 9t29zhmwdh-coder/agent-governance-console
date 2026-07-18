@@ -157,6 +157,7 @@ full contract and what's mock-tested vs. live-Entra-ID-tested.
 | GET | `/api/v1/audit/count` | Total audit record count (tenant-scoped) |
 | GET | `/api/v1/audit/export.ndjson` / `.csv` | Streaming audit export (tenant-scoped) |
 | GET | `/api/v1/compliance/report` | Responsible-AI-aligned compliance report, Markdown or `?format=json` (tenant-scoped) |
+| GET | `/dashboard` | Static HTML/CSS/JS dashboard over the REST API above, see `docs/dashboard.md` |
 
 Full request/response schemas: `docs/api_reference.md`.
 

@@ -198,9 +198,17 @@ fn tenant_store_error(tenant_id: &str, e: rusqlite::Error) -> Response {
         .into_response()
 }
 
+/// The dashboard's HTML/CSS/JS is a single self-contained static file
+/// (no build step, no external CDN, no framework) embedded at compile
+/// time -- see `agc-api/static/dashboard.html`. It calls this server's
+/// own JSON REST endpoints via `fetch`, so it needs no server-side
+/// templating or state of its own.
+const DASHBOARD_HTML: &str = include_str!("../static/dashboard.html");
+
 pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/dashboard", get(|| async { ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], DASHBOARD_HTML) }))
         .route(
             "/api/v1/tenants",
             get({

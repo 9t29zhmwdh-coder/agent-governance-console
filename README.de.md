@@ -17,7 +17,7 @@ Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.micros
 [![CI](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions/workflows/ci.yml/badge.svg)](https://github.com/9t29zhmwdh-coder/agent-governance-console/actions) ![Azure Ready](https://img.shields.io/badge/Azure-Ready-0078d4?logo=microsoftazure&logoColor=white) ![Platform](https://img.shields.io/badge/Platform-Windows_%7C_Ubuntu-lightgrey) ![Rust](https://img.shields.io/badge/Rust-CE422B?logo=rust&logoColor=white) ![AI | Claude Code](https://img.shields.io/badge/AI-Claude_Code-black?logo=anthropic&logoColor=white) ![AI | Copilot](https://img.shields.io/badge/AI-Copilot-black?logo=github&logoColor=white) [![Release](https://img.shields.io/github/v/release/9t29zhmwdh-coder/agent-governance-console?color=3F8E7E)](https://github.com/9t29zhmwdh-coder/agent-governance-console/releases) [![License](https://img.shields.io/github/license/9t29zhmwdh-coder/agent-governance-console?color=lightgrey)](LICENSE)
 
 
-> **So läuft das:** AGC ist kein gehosteter Dienst und keine Desktop-App. `agc-api` ist ein kleiner REST-API-Server, den du selbst mit `cargo run` startest, standardmässig auf `127.0.0.1:8080`. Es gibt keinen Installer und nichts läuft im Hintergrund, du startest und stoppst den Prozess selbst.
+> **So läuft das:** AGC ist kein gehosteter Dienst und keine Desktop-App. `agc-api` ist ein kleiner REST-API-Server, den du selbst mit `cargo run` startest, standardmässig auf `127.0.0.1:8080`. Es gibt keinen Installer und nichts läuft im Hintergrund, du startest und stoppst den Prozess selbst. Öffne `http://127.0.0.1:8080/dashboard` im Browser für eine leichtgewichtige UI über dieselbe API.
 
 ![Agent Governance Console](docs/screenshot.png)
 
@@ -54,6 +54,7 @@ Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-
 | **RBAC für REST-API** | Verfügbar: `AGC_JWT_SECRET` (HS256) oder `AGC_AAD_TENANT_ID` (Entra ID RS256) schützt Schreibzugriffe mit `Admin`, Lesezugriffe brauchen `Viewer`; opt-in, standardmässig aus |
 | **Microsoft-Sentinel-Export** | Verfügbar: `agc-cli sentinel export --format kql\|arm` erzeugt 4 eingebaute Analytics-Rule-Vorlagen aus der AGC-Audit-Tabelle, als KQL-Dateien oder als deploybares ARM-Template — siehe [docs/sentinel.md](docs/sentinel.md) |
 | **Compliance-Report-Export** | Verfügbar: `GET /api/v1/compliance/report` (Markdown oder `?format=json`), berichtet gegen 4 der 6 Microsoft-Responsible-AI-Prinzipien anhand echter Tenant-Audit-/Trace-Daten — siehe [docs/compliance.md](docs/compliance.md) |
+| **Dashboard-UI** | Verfügbar: `GET /dashboard`, eine eigenständige statische Seite (kein Build-Schritt) mit Health, Tenants, Policies, Tenant-Traces, paginierter Audit-Tabelle und Compliance-Report — siehe [docs/dashboard.md](docs/dashboard.md) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
 
