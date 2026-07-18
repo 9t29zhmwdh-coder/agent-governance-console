@@ -74,7 +74,7 @@ available while building this) — same disclosed limitation as
 Returns service health and version. No tenant header needed.
 
 ```json
-{ "status": "ok", "version": "0.6.0" }
+{ "status": "ok", "version": "1.0.0" }
 ```
 
 ### GET /api/v1/traces/count
