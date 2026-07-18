@@ -110,6 +110,7 @@ pub struct AppState {
     pub policy: Arc<Mutex<PolicyEngine>>,                    // global
     pub otlp: Option<Arc<agc_azure::OtlpExporter>>,          // global
     audit_db_dir: Option<PathBuf>,
+    pub auth: AuthConfig, // global, see "RBAC" below
 }
 
 pub struct TenantStore {
@@ -122,6 +123,16 @@ Every trace/audit endpoint requires `X-Tenant-Id`; there is deliberately
 no default-tenant fallback (see `TenantId`'s `FromRequestParts` impl),
 so isolation can't be silently bypassed by a client forgetting the
 header. `GET /api/v1/tenants` lists every tenant ID seen so far.
+
+## RBAC (`agc-api::auth`)
+
+Each tenant/policy route closure checks `auth::authorize(&state.auth,
+&headers, min_role)` before calling its handler, returning the
+`401`/`403` response early if it fails. `AuthConfig` has three variants:
+`Disabled` (default, every request is `Admin`), `Hmac` (HS256, shared
+secret), `Aad` (RS256, Entra ID JWKS, `kid`-based key selection, JWKS
+cached in-process after first fetch). See `docs/api_reference.md` for the
+full contract and what's mock-tested vs. live-Entra-ID-tested.
 
 ## REST API Endpoints
 

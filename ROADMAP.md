@@ -64,7 +64,7 @@ too large for one release); v1.0.0 itself is declared only once every
 item below is checked off.
 
 - [x] Multi-tenant mode (tenant isolation in trace/audit stores): shipped in v0.6.0. `X-Tenant-Id` header (required on every trace/audit endpoint, no silent "default tenant" fallback) resolves a per-tenant `TraceStore`+`AuditLog` pair, created lazily on first use; with `AGC_AUDIT_DB_DIR` set, each tenant gets its own `{tenant_id}.sqlite` file — genuine storage-level isolation, verified by inspecting the files on disk, not just a filtered view over one shared store. `GET /api/v1/tenants` lists every tenant seen so far. Deliberately excludes policies, which stay global/shared governance across all tenants, per this item's own wording ("in trace/audit stores").
-- [ ] Role-based access control for REST API (JWT / AAD tokens)
+- [x] Role-based access control for REST API (JWT / AAD tokens): shipped in v0.7.0. `Authorization: Bearer <token>` gates every trace/audit/policy endpoint (`Viewer` for reads, `Admin` for writes); `AGC_JWT_SECRET` for shared-secret HS256, or `AGC_AAD_TENANT_ID`+`AGC_AAD_AUDIENCE` for Entra ID RS256 via JWKS. Opt-in: with neither set, RBAC stays off and every request is `Admin`, identical to this API's behavior before RBAC existed. The AAD/JWKS path is real-HTTP-tested against a mock server (fetch, `kid` lookup, RS256 verify all actually exercised) but not against a live Entra ID tenant (none was available while building this).
 - [ ] Microsoft Sentinel analytics rule export (Kusto query templates for AGC audit events)
 - [ ] Entra ID managed identity support for all Azure integrations (no client secrets)
 - [ ] Compliance report export aligned with Microsoft AI Responsible Use guidelines

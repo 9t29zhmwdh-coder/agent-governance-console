@@ -1,7 +1,11 @@
+mod auth;
+
+pub use auth::{AuthConfig, Role};
+
 use agc_core::{AuditLog, AuditOutcome, AuditRecord, ConsoleConfig, GovernancePolicy, PolicyAction, PolicyEngine, TraceSpan, TraceStore};
 use axum::{
     extract::{FromRequestParts, Path, Query},
-    http::{header, request::Parts, StatusCode},
+    http::{header, request::Parts, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -43,6 +47,10 @@ pub struct AppState {
     /// (created lazily on that tenant's first request) instead of vanishing
     /// with an in-memory log when the process exits.
     audit_db_dir: Option<PathBuf>,
+    /// RBAC gate for the REST API. `AuthConfig::Disabled` (the default)
+    /// treats every request as `Role::Admin`, matching this API's
+    /// behavior before RBAC existed.
+    pub auth: AuthConfig,
 }
 
 impl AppState {
@@ -52,6 +60,7 @@ impl AppState {
             policy: Arc::new(Mutex::new(PolicyEngine::new())),
             otlp: None,
             audit_db_dir: None,
+            auth: AuthConfig::disabled(),
         }
     }
 
@@ -167,21 +176,34 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/tenants",
             get({
                 let s = state.clone();
-                move || async move { Json(serde_json::json!({"tenants": s.tenant_ids().await})) }
+                move |headers: HeaderMap| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
+                    Json(serde_json::json!({"tenants": s.tenant_ids().await})).into_response()
+                }
             }),
         )
         .route(
             "/api/v1/traces/count",
             get({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId| async move { traces_count(s, tenant_id).await }
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
+                    traces_count(s, tenant_id).await
+                }
             }),
         )
         .route(
             "/api/v1/traces",
             post({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId, Json(span): Json<TraceSpan>| async move {
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap, Json(span): Json<TraceSpan>| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Admin).await {
+                        return resp;
+                    }
                     ingest_trace(s, tenant_id, span).await
                 }
             }),
@@ -190,7 +212,10 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/traces/:trace_id",
             get({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId, Path(trace_id): Path<Uuid>| async move {
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap, Path(trace_id): Path<Uuid>| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
                     get_trace(s, tenant_id, trace_id).await
                 }
             }),
@@ -199,14 +224,22 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/audit/count",
             get({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId| async move { audit_count(s, tenant_id).await }
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
+                    audit_count(s, tenant_id).await
+                }
             }),
         )
         .route(
             "/api/v1/audit",
             get({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId, Query(q): Query<AuditQuery>| async move {
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap, Query(q): Query<AuditQuery>| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
                     list_audit(s, tenant_id, q).await
                 }
             }),
@@ -215,23 +248,36 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/audit/export.ndjson",
             get({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId| async move { export_ndjson(s, tenant_id).await }
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
+                    export_ndjson(s, tenant_id).await
+                }
             }),
         )
         .route(
             "/api/v1/audit/export.csv",
             get({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId| async move { export_csv(s, tenant_id).await }
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
+                    export_csv(s, tenant_id).await
+                }
             }),
         )
         .route(
             "/api/v1/policies/count",
             get({
                 let s = state.clone();
-                move || async move {
+                move |headers: HeaderMap| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
                     let count = s.policy.lock().await.policy_count();
-                    Json(serde_json::json!({"policy_count": count}))
+                    Json(serde_json::json!({"policy_count": count})).into_response()
                 }
             }),
         )
@@ -239,7 +285,12 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/policies",
             post({
                 let s = state.clone();
-                move |Json(policy): Json<GovernancePolicy>| async move { load_policy(s, policy).await }
+                move |headers: HeaderMap, Json(policy): Json<GovernancePolicy>| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Admin).await {
+                        return resp;
+                    }
+                    load_policy(s, policy).await
+                }
             }),
         )
 }

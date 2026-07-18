@@ -30,7 +30,7 @@ Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com
 
 Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `agc-api`, `agc-cli`, `agc-azure`) for governing, observing and auditing AI agent workflows. The core library models trace spans, governance policies and audit records with a tested API; the REST API supports full trace ingestion with a real-time policy gate, policy loading, and paginated/streaming audit queries; and Azure integration (OTLP telemetry export, Managed-Identity-authenticated audit push to Azure Monitor, Microsoft Graph agent lookup) is real and wired in, not just planned (see [ROADMAP.md](ROADMAP.md)).
 
-**In practice:** you can load a governance policy, POST agent trace spans against it, and have matching rules warn, block, or (recorded, not yet externally delivered) alert in real time, with every decision written to a queryable, exportable audit log that can be pushed to Azure Monitor. Trace and audit data are isolated per tenant (`X-Tenant-Id`, each with its own store); policies stay shared governance across every tenant. RBAC for the REST API itself is still ahead on the roadmap.
+**In practice:** you can load a governance policy, POST agent trace spans against it, and have matching rules warn, block, or (recorded, not yet externally delivered) alert in real time, with every decision written to a queryable, exportable audit log that can be pushed to Azure Monitor. Trace and audit data are isolated per tenant (`X-Tenant-Id`, each with its own store); policies stay shared governance across every tenant. Optional RBAC (`Authorization: Bearer <JWT>`, HS256 or Entra ID) gates writes to an `Admin` role.
 
 ---
 
@@ -52,7 +52,8 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **YAML policy DSL** | Available: `GovernancePolicy::from_yaml` parses YAML or JSON (one parser, YAML is a JSON superset); `agc-cli policy validate` for offline checks |
 | **Policy hot-reload** | Available: `AGC_POLICY_DIR` loads and live-reloads every policy file in a directory; a bad edit keeps the previous policy set instead of wiping it |
 | **OPA/Rego export** | Available: `agc-cli policy to-rego` renders a structural Rego stub per policy — a hand-porting starting point, not a full semantic translation |
-| **Microsoft Sentinel / REST API auth** | Planned v1.0.0+, see [ROADMAP.md](ROADMAP.md) |
+| **RBAC for REST API** | Available: `AGC_JWT_SECRET` (HS256) or `AGC_AAD_TENANT_ID` (Entra ID RS256) gates writes to `Admin`, reads need `Viewer`; opt-in, off by default |
+| **Microsoft Sentinel export** | Planned v1.0.0+, see [ROADMAP.md](ROADMAP.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 
@@ -158,6 +159,22 @@ AGC_POLICY_DIR=./policies cargo run --bin agc-api
 # exactly what's a real translation vs. a hand-porting starting point)
 cargo run --bin agc-cli -- policy to-rego ./policies/block-errors.yaml
 ```
+
+### Try RBAC (optional)
+
+```bash
+# Enable HS256 JWT auth with a shared secret
+AGC_JWT_SECRET=s3cret cargo run --bin agc-api
+
+# No token: 401
+curl -w "\nHTTP %{http_code}\n" http://127.0.0.1:8080/api/v1/traces/count -H "X-Tenant-Id: tenant-a"
+
+# A viewer-role token can read but not write (403 on POST)
+# An admin-role token can do both -- generate one with any HS256 JWT
+# library using the same secret and a {"roles": ["admin"]} payload.
+```
+
+Or point `AGC_AAD_TENANT_ID` (+ optional `AGC_AAD_AUDIENCE`) at a real Entra ID tenant instead of a shared secret — see `docs/api_reference.md` for the full RBAC section.
 
 ### Try the Azure integration (optional)
 
