@@ -58,7 +58,12 @@ release became a Minor bump to the next available number.
 
 ## v1.0.0 : Enterprise GA
 
-- [ ] Multi-tenant mode (tenant isolation in trace/audit stores)
+This milestone ships incrementally across several Minor releases as each
+item lands (unlike the three previous milestones, this one is genuinely
+too large for one release); v1.0.0 itself is declared only once every
+item below is checked off.
+
+- [x] Multi-tenant mode (tenant isolation in trace/audit stores): shipped in v0.6.0. `X-Tenant-Id` header (required on every trace/audit endpoint, no silent "default tenant" fallback) resolves a per-tenant `TraceStore`+`AuditLog` pair, created lazily on first use; with `AGC_AUDIT_DB_DIR` set, each tenant gets its own `{tenant_id}.sqlite` file — genuine storage-level isolation, verified by inspecting the files on disk, not just a filtered view over one shared store. `GET /api/v1/tenants` lists every tenant seen so far. Deliberately excludes policies, which stay global/shared governance across all tenants, per this item's own wording ("in trace/audit stores").
 - [ ] Role-based access control for REST API (JWT / AAD tokens)
 - [ ] Microsoft Sentinel analytics rule export (Kusto query templates for AGC audit events)
 - [ ] Entra ID managed identity support for all Azure integrations (no client secrets)

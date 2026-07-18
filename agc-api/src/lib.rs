@@ -1,56 +1,78 @@
 use agc_core::{AuditLog, AuditOutcome, AuditRecord, ConsoleConfig, GovernancePolicy, PolicyAction, PolicyEngine, TraceSpan, TraceStore};
 use axum::{
-    extract::{Path, Query},
-    http::{header, StatusCode},
+    extract::{FromRequestParts, Path, Query},
+    http::{header, request::Parts, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
 use chrono::Utc;
+use std::collections::HashMap;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
+/// Per-tenant trace and audit storage. Policies stay global (shared
+/// governance across all tenants, see `AppState::policy`); only trace and
+/// audit data are isolated, per `ROADMAP.md`'s "tenant isolation in
+/// trace/audit stores".
+pub struct TenantStore {
+    pub traces: Mutex<TraceStore>,
+    pub audit: Mutex<AuditLog>,
+}
+
+impl TenantStore {
+    fn in_memory() -> Self {
+        Self { traces: Mutex::new(TraceStore::new()), audit: Mutex::new(AuditLog::new()) }
+    }
+
+    fn with_audit_db(path: impl AsRef<FsPath>) -> rusqlite::Result<Self> {
+        Ok(Self { traces: Mutex::new(TraceStore::new()), audit: Mutex::new(AuditLog::open(path)?) })
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
-    pub traces: Arc<Mutex<TraceStore>>,
-    pub audit: Arc<Mutex<AuditLog>>,
+    tenants: Arc<Mutex<HashMap<String, Arc<TenantStore>>>>,
     pub policy: Arc<Mutex<PolicyEngine>>,
     /// Real OTLP span exporter, present only when telemetry is enabled and
     /// configured with an endpoint (see `agc_core::TelemetryConfig`).
     pub otlp: Option<Arc<agc_azure::OtlpExporter>>,
+    /// If set, each tenant's audit log persists to `{dir}/{tenant_id}.sqlite`
+    /// (created lazily on that tenant's first request) instead of vanishing
+    /// with an in-memory log when the process exits.
+    audit_db_dir: Option<PathBuf>,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
-            traces: Arc::new(Mutex::new(TraceStore::new())),
-            audit: Arc::new(Mutex::new(AuditLog::new())),
+            tenants: Arc::new(Mutex::new(HashMap::new())),
             policy: Arc::new(Mutex::new(PolicyEngine::new())),
             otlp: None,
+            audit_db_dir: None,
         }
     }
 
-    /// Same as `new()`, but the audit log persists to a SQLite file at
-    /// `path` so records survive a process restart instead of vanishing
-    /// with the in-memory log `new()` uses.
-    pub fn with_audit_db(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Self> {
-        Ok(Self {
-            traces: Arc::new(Mutex::new(TraceStore::new())),
-            audit: Arc::new(Mutex::new(AuditLog::open(path)?)),
-            policy: Arc::new(Mutex::new(PolicyEngine::new())),
-            otlp: None,
-        })
+    /// Same as `new()`, but every tenant's audit log persists to
+    /// `{dir}/{tenant_id}.sqlite` instead of vanishing on process exit.
+    pub fn with_audit_db_dir(dir: impl Into<PathBuf>) -> Self {
+        let mut state = Self::new();
+        state.audit_db_dir = Some(dir.into());
+        state
     }
 
-    /// Builds from a `ConsoleConfig`: file-backed audit log if
-    /// `audit_db_path` is set, in-memory otherwise. If telemetry is
+    /// Builds from a `ConsoleConfig`: per-tenant file-backed audit logs if
+    /// `audit_db_dir` is set, in-memory otherwise (no I/O happens here;
+    /// tenant stores -- and their SQLite files, if configured -- are
+    /// created lazily on each tenant's first request). If telemetry is
     /// enabled with an endpoint, also constructs a real OTLP exporter; a
     /// misconfigured endpoint logs a warning and leaves telemetry off
     /// rather than failing the whole server startup over it.
-    pub fn from_config(cfg: &ConsoleConfig) -> rusqlite::Result<Self> {
-        let mut state = match &cfg.audit_db_path {
-            Some(path) => Self::with_audit_db(path)?,
+    pub fn from_config(cfg: &ConsoleConfig) -> Self {
+        let mut state = match &cfg.audit_db_dir {
+            Some(dir) => Self::with_audit_db_dir(dir.clone()),
             None => Self::new(),
         };
         if cfg.telemetry.enabled {
@@ -61,7 +83,37 @@ impl AppState {
                 }
             }
         }
-        Ok(state)
+        state
+    }
+
+    /// Resolves the store for `tenant_id`, creating it (and, if
+    /// `audit_db_dir` is set, its backing SQLite file) on first use.
+    async fn tenant_store(&self, tenant_id: &str) -> rusqlite::Result<Arc<TenantStore>> {
+        let mut tenants = self.tenants.lock().await;
+        if let Some(store) = tenants.get(tenant_id) {
+            return Ok(store.clone());
+        }
+        let store = match &self.audit_db_dir {
+            Some(dir) => {
+                std::fs::create_dir_all(dir).map_err(|e| {
+                    rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(1),
+                        Some(format!("creating audit_db_dir {}: {e}", dir.display())),
+                    )
+                })?;
+                Arc::new(TenantStore::with_audit_db(dir.join(format!("{tenant_id}.sqlite")))?)
+            }
+            None => Arc::new(TenantStore::in_memory()),
+        };
+        tenants.insert(tenant_id.to_string(), store.clone());
+        Ok(store)
+    }
+
+    /// Every tenant ID that has made at least one request so far, sorted.
+    pub async fn tenant_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.tenants.lock().await.keys().cloned().collect();
+        ids.sort();
+        ids
     }
 }
 
@@ -71,62 +123,106 @@ impl Default for AppState {
     }
 }
 
+/// Extracts the required `X-Tenant-Id` header. Rejects with `400` if it's
+/// missing or empty -- multi-tenant isolation only works if every request
+/// says which tenant it's for, so there is no "default tenant" fallback
+/// silently pooling everyone's data together.
+pub struct TenantId(pub String);
+
+#[axum::async_trait]
+impl<S> FromRequestParts<S> for TenantId
+where
+    S: Send + Sync,
+{
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        match parts.headers.get("X-Tenant-Id").and_then(|v| v.to_str().ok()) {
+            Some(id) if !id.trim().is_empty() => Ok(TenantId(id.to_string())),
+            _ => Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "missing_tenant_id",
+                    "reason": "the X-Tenant-Id header is required on this endpoint",
+                })),
+            )
+                .into_response()),
+        }
+    }
+}
+
+fn tenant_store_error(tenant_id: &str, e: rusqlite::Error) -> Response {
+    tracing::error!("failed to open tenant store for '{tenant_id}': {e}");
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": "tenant_store_unavailable"})),
+    )
+        .into_response()
+}
+
 pub fn create_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
         .route(
+            "/api/v1/tenants",
+            get({
+                let s = state.clone();
+                move || async move { Json(serde_json::json!({"tenants": s.tenant_ids().await})) }
+            }),
+        )
+        .route(
             "/api/v1/traces/count",
             get({
                 let s = state.clone();
-                move || async move {
-                    let count = s.traces.lock().await.span_count();
-                    Json(serde_json::json!({"span_count": count}))
-                }
+                move |TenantId(tenant_id): TenantId| async move { traces_count(s, tenant_id).await }
             }),
         )
         .route(
             "/api/v1/traces",
             post({
                 let s = state.clone();
-                move |Json(span): Json<TraceSpan>| async move { ingest_trace(s, span).await }
+                move |TenantId(tenant_id): TenantId, Json(span): Json<TraceSpan>| async move {
+                    ingest_trace(s, tenant_id, span).await
+                }
             }),
         )
         .route(
             "/api/v1/traces/:trace_id",
             get({
                 let s = state.clone();
-                move |Path(trace_id): Path<Uuid>| async move { get_trace(s, trace_id).await }
+                move |TenantId(tenant_id): TenantId, Path(trace_id): Path<Uuid>| async move {
+                    get_trace(s, tenant_id, trace_id).await
+                }
             }),
         )
         .route(
             "/api/v1/audit/count",
             get({
                 let s = state.clone();
-                move || async move {
-                    let count = s.audit.lock().await.record_count();
-                    Json(serde_json::json!({"record_count": count}))
-                }
+                move |TenantId(tenant_id): TenantId| async move { audit_count(s, tenant_id).await }
             }),
         )
         .route(
             "/api/v1/audit",
             get({
                 let s = state.clone();
-                move |Query(q): Query<AuditQuery>| async move { list_audit(s, q).await }
+                move |TenantId(tenant_id): TenantId, Query(q): Query<AuditQuery>| async move {
+                    list_audit(s, tenant_id, q).await
+                }
             }),
         )
         .route(
             "/api/v1/audit/export.ndjson",
             get({
                 let s = state.clone();
-                move || async move { export_ndjson(s).await }
+                move |TenantId(tenant_id): TenantId| async move { export_ndjson(s, tenant_id).await }
             }),
         )
         .route(
             "/api/v1/audit/export.csv",
             get({
                 let s = state.clone();
-                move || async move { export_csv(s).await }
+                move |TenantId(tenant_id): TenantId| async move { export_csv(s, tenant_id).await }
             }),
         )
         .route(
@@ -156,11 +252,35 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")}))
 }
 
-/// Real-time policy gate: evaluates every in-scope policy rule against the
-/// incoming span, records one audit entry per matched rule, and rejects the
-/// span with 403 if any matched rule's action is `Block`. A blocked span is
-/// never written to the trace store.
-async fn ingest_trace(state: AppState, span: TraceSpan) -> Response {
+async fn traces_count(state: AppState, tenant_id: String) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
+    let count = store.traces.lock().await.span_count();
+    Json(serde_json::json!({"tenant_id": tenant_id, "span_count": count})).into_response()
+}
+
+async fn audit_count(state: AppState, tenant_id: String) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
+    let count = store.audit.lock().await.record_count();
+    Json(serde_json::json!({"tenant_id": tenant_id, "record_count": count})).into_response()
+}
+
+/// Real-time policy gate: evaluates every in-scope policy rule (global,
+/// shared across tenants) against the incoming span, records one audit
+/// entry per matched rule in `tenant_id`'s isolated audit log, and rejects
+/// the span with 403 if any matched rule's action is `Block`. A blocked
+/// span is never written to that tenant's trace store.
+async fn ingest_trace(state: AppState, tenant_id: String, span: TraceSpan) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
+
     let matches = {
         let policy = state.policy.lock().await;
         policy.evaluate(&span)
@@ -168,7 +288,7 @@ async fn ingest_trace(state: AppState, span: TraceSpan) -> Response {
 
     let mut block: Option<(String, String)> = None;
     {
-        let mut audit = state.audit.lock().await;
+        let mut audit = store.audit.lock().await;
         for (policy_id, rule) in &matches {
             let outcome = match &rule.action {
                 PolicyAction::Warn { .. } => AuditOutcome::Warned,
@@ -214,11 +334,12 @@ async fn ingest_trace(state: AppState, span: TraceSpan) -> Response {
 
     let span_id = span.span_id;
     let trace_id = span.trace_id;
-    state.traces.lock().await.ingest(span);
+    store.traces.lock().await.ingest(span);
 
     (
         StatusCode::CREATED,
         Json(serde_json::json!({
+            "tenant_id": tenant_id,
             "span_id": span_id,
             "trace_id": trace_id,
             "policy_events": matches.len(),
@@ -227,17 +348,25 @@ async fn ingest_trace(state: AppState, span: TraceSpan) -> Response {
         .into_response()
 }
 
-async fn get_trace(state: AppState, trace_id: Uuid) -> Response {
-    let traces = state.traces.lock().await;
+async fn get_trace(state: AppState, tenant_id: String, trace_id: Uuid) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
+    let traces = store.traces.lock().await;
     let spans = traces.spans_for_trace(&trace_id);
     if spans.is_empty() {
         return (
             StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": "trace_not_found", "trace_id": trace_id})),
+            Json(serde_json::json!({"error": "trace_not_found", "tenant_id": tenant_id, "trace_id": trace_id})),
         )
             .into_response();
     }
-    (StatusCode::OK, Json(serde_json::json!({"trace_id": trace_id, "spans": spans}))).into_response()
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"tenant_id": tenant_id, "trace_id": trace_id, "spans": spans})),
+    )
+        .into_response()
 }
 
 async fn load_policy(state: AppState, policy: GovernancePolicy) -> Response {
@@ -252,13 +381,18 @@ struct AuditQuery {
     offset: Option<usize>,
 }
 
-async fn list_audit(state: AppState, q: AuditQuery) -> Response {
+async fn list_audit(state: AppState, tenant_id: String, q: AuditQuery) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
     let limit = q.limit.unwrap_or(50).clamp(1, 500);
     let offset = q.offset.unwrap_or(0);
-    let (records, total) = state.audit.lock().await.list_paginated(limit, offset);
+    let (records, total) = store.audit.lock().await.list_paginated(limit, offset);
     (
         StatusCode::OK,
         Json(serde_json::json!({
+            "tenant_id": tenant_id,
             "total": total,
             "limit": limit,
             "offset": offset,
@@ -268,13 +402,21 @@ async fn list_audit(state: AppState, q: AuditQuery) -> Response {
         .into_response()
 }
 
-async fn export_ndjson(state: AppState) -> Response {
-    let body = state.audit.lock().await.export_ndjson();
+async fn export_ndjson(state: AppState, tenant_id: String) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
+    let body = store.audit.lock().await.export_ndjson();
     (StatusCode::OK, [(header::CONTENT_TYPE, "application/x-ndjson")], body).into_response()
 }
 
-async fn export_csv(state: AppState) -> Response {
-    let body = state.audit.lock().await.export_csv();
+async fn export_csv(state: AppState, tenant_id: String) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
+    let body = store.audit.lock().await.export_csv();
     (StatusCode::OK, [(header::CONTENT_TYPE, "text/csv")], body).into_response()
 }
 
@@ -289,7 +431,7 @@ async fn export_csv(state: AppState) -> Response {
 /// for the duration the reload should keep working; dropping it stops
 /// the watch.
 pub fn spawn_policy_hot_reload(
-    dir: std::path::PathBuf,
+    dir: PathBuf,
     policy: Arc<Mutex<agc_core::PolicyEngine>>,
 ) -> notify::Result<notify::RecommendedWatcher> {
     use notify::Watcher;

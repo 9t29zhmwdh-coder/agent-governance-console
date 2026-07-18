@@ -5,6 +5,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.6.0] - 2026-07-18
+
+Ships the "Multi-tenant mode" item from ROADMAP.md's "v1.0.0: Enterprise
+GA" milestone. This is a Minor release, not v1.0.0: the Enterprise GA
+milestone has 8 items total, this ships the first one; v1.0.0 itself is
+only declared once all of them land.
+
+### Added
+- `X-Tenant-Id` header (required on every trace/audit endpoint, `400` if missing or empty — no silent "default tenant" fallback that would pool everyone's data together) resolves an isolated `TraceStore`+`AuditLog` pair per tenant, created lazily on that tenant's first request.
+- `AGC_AUDIT_DB_DIR` (replaces `AGC_AUDIT_DB_PATH`): with it set, each tenant's audit log persists to its own `{tenant_id}.sqlite` file — genuine storage-level isolation, verified by inspecting the files on disk in a real end-to-end test, not just a filtered view over one shared store.
+- `GET /api/v1/tenants`: lists every tenant ID seen so far (sorted).
+- 5 new integration tests covering tenant isolation (a different tenant's data stays at zero), the missing-header rejection, the tenant list endpoint, and that policies correctly stay global across tenants (not tenant-scoped, per this item's own "in trace/audit stores" wording).
+
+### Changed (breaking)
+- `ConsoleConfig::audit_db_path: Option<PathBuf>` renamed to `audit_db_dir: Option<PathBuf>` — it's now a directory (one SQLite file per tenant inside it), not a single file.
+- `AppState::from_config` is now infallible (`-> Self`, not `-> rusqlite::Result<Self>`): tenant stores (and their SQLite files) are opened lazily per-request now, not eagerly at startup, so there's nothing left that can fail synchronously at construction time.
+- Every response from a tenant-scoped endpoint now includes a `"tenant_id"` field.
+
+Policies are deliberately **not** tenant-scoped: a policy loaded via `POST /api/v1/policies` is shared governance that gates every tenant's ingestion, matching this roadmap item's literal wording ("tenant isolation in trace/audit stores").
+
 ## [0.5.0] - 2026-07-18
 
 Ships the full "v0.4.0: Policy DSL" roadmap milestone (released as

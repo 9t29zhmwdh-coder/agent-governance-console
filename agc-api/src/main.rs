@@ -7,8 +7,8 @@ async fn main() {
         .init();
 
     let mut cfg = default_config();
-    if let Ok(path) = std::env::var("AGC_AUDIT_DB_PATH") {
-        cfg.audit_db_path = Some(path.into());
+    if let Ok(dir) = std::env::var("AGC_AUDIT_DB_DIR") {
+        cfg.audit_db_dir = Some(dir.into());
     }
     if let Ok(endpoint) = std::env::var("AGC_TELEMETRY_ENDPOINT") {
         cfg.telemetry.enabled = true;
@@ -17,11 +17,11 @@ async fn main() {
             std::env::var("AGC_TELEMETRY_SERVICE_NAME").unwrap_or_else(|_| "agc".to_string());
     }
 
-    let state = AppState::from_config(&cfg).expect("opening audit database");
-    if let Some(path) = &cfg.audit_db_path {
-        tracing::info!("Audit log persisted to {}", path.display());
+    let state = AppState::from_config(&cfg);
+    if let Some(dir) = &cfg.audit_db_dir {
+        tracing::info!("Each tenant's audit log persists under {} (created on first use)", dir.display());
     } else {
-        tracing::info!("Audit log is in-memory only (set AGC_AUDIT_DB_PATH to persist)");
+        tracing::info!("Audit logs are in-memory only (set AGC_AUDIT_DB_DIR to persist per tenant)");
     }
     if state.otlp.is_some() {
         tracing::info!("OTLP telemetry export enabled to {}", cfg.telemetry.endpoint.as_deref().unwrap_or(""));

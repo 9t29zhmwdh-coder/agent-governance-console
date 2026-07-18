@@ -21,9 +21,11 @@ pub struct ConsoleConfig {
     pub api_bind: String,
     /// Persist audit log to file on shutdown (path, if Some).
     pub audit_export_path: Option<std::path::PathBuf>,
-    /// SQLite file backing the audit log. `None` keeps the previous
-    /// in-memory-only behavior (records vanish when the process exits).
-    pub audit_db_path: Option<std::path::PathBuf>,
+    /// Directory holding each tenant's SQLite-backed audit log
+    /// (`{dir}/{tenant_id}.sqlite`, created lazily on that tenant's first
+    /// request). `None` keeps the previous in-memory-only behavior
+    /// (records vanish when the process exits).
+    pub audit_db_dir: Option<std::path::PathBuf>,
 }
 
 impl ConsoleConfig {
@@ -32,7 +34,7 @@ impl ConsoleConfig {
             api_bind: "127.0.0.1:8080".into(),
             telemetry: TelemetryConfig { enabled: false, ..Default::default() },
             audit_export_path: None,
-            audit_db_path: None,
+            audit_db_dir: None,
         }
     }
 }
