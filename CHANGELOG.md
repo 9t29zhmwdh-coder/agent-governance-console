@@ -5,6 +5,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.9.0] - 2026-07-18
+
+Ships the "Entra ID managed identity support for all Azure integrations
+(no client secrets)" item from ROADMAP.md's "v1.0.0: Enterprise GA"
+milestone (item 4 of 8).
+
+### Added
+- `agc_azure::OtlpExporter::new` now takes an optional bearer token, sent as a static `Authorization: Bearer <token>` header on every OTLP export request -- the shape Azure Monitor's native OTLP endpoint requires.
+- `AGC_TELEMETRY_MANAGED_IDENTITY` (system-assigned) or `AGC_TELEMETRY_MANAGED_IDENTITY_CLIENT_ID` (user-assigned) fetches that token via Managed Identity, scoped to `https://monitor.azure.com/.default`, before the exporter is built. No client secret anywhere in this flow.
+- New `TelemetryConfig` fields: `use_managed_identity: bool`, `managed_identity_client_id: Option<String>`.
+- New `AppState.otlp_authenticated: bool`, distinct from "authentication was requested": only `true` if a token was actually obtained and attached, so the startup log line (and any future health/status endpoint) can't misreport a failed token fetch as a successful one.
+- 2 new tests: a unit test in `agc-azure::otlp` proving the header actually reaches the wire (mock server matches on the literal `Authorization` header value), and a real end-to-end integration test in `agc-api` that exercises the *actual* default IMDS endpoint (unreachable off Azure, 2s timeout) and confirms the server still starts, OTLP still works, and `otlp_authenticated` correctly stays `false`.
+
+### Changed (breaking)
+- `agc_azure::OtlpExporter::new(endpoint, service_name)` is now `new(endpoint, service_name, bearer_token: Option<&str>)`.
+- `agc_api::AppState::from_config` is now `async` (it awaits a real IMDS call when Managed Identity is requested); all callers updated (`agc-api/src/main.rs`, `agc-api/tests/api_integration.rs`).
+
+### Known limitation
+- The Managed Identity token is fetched once, at startup, and is not refreshed for the life of the process. A genuinely long-running deployment needs a restart (or a future refresh mechanism, not built yet) before a long-lived token expires. Microsoft Graph and Azure Monitor Logs Ingestion (`agc-cli azure list-agents` / `push-audit`) were already Managed-Identity-authenticated since v0.3.0 and are unaffected by this release; this item closed the one remaining unauthenticated Azure integration path (OTLP).
+
 ## [0.8.0] - 2026-07-18
 
 Ships the "Microsoft Sentinel analytics rule export" item from

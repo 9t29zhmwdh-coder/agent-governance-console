@@ -13,6 +13,16 @@ pub struct TelemetryConfig {
     pub service_name: String,
     /// Include agent IDs in telemetry (may be sensitive in some deployments).
     pub include_agent_ids: bool,
+    /// Fetch a Microsoft Entra Managed Identity token (scoped to
+    /// `https://monitor.azure.com/.default`) and send it as the OTLP
+    /// export's `Authorization: Bearer` header -- required by Azure
+    /// Monitor's native OTLP endpoint, not needed for a self-hosted
+    /// OpenTelemetry Collector target. No client secret is ever involved.
+    pub use_managed_identity: bool,
+    /// Scopes the Managed Identity token request to a specific
+    /// user-assigned identity; `None` uses the system-assigned identity.
+    /// Ignored unless `use_managed_identity` is `true`.
+    pub managed_identity_client_id: Option<String>,
 }
 
 /// No-op telemetry sink used when telemetry is disabled.

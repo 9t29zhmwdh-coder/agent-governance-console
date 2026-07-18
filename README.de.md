@@ -45,7 +45,7 @@ Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-
 | **Policy-Laden & Echtzeit-Gating via API** | Verfügbar: `POST /api/v1/policies`; jeder aufgenommene Span wird gegen geladene Policies ausgewertet, `block`-Regeln lehnen den Span mit `403` ab |
 | **Audit-Abfrage & -Export via API** | Verfügbar: `GET /api/v1/audit?limit=&offset=`, `GET /api/v1/audit/export.ndjson` / `.csv` |
 | **REST-API** | `/health`, `/api/v1/tenants`, `/api/v1/traces`, `/api/v1/traces/count`, `/api/v1/traces/{trace_id}`, `/api/v1/audit`, `/api/v1/audit/count`, `/api/v1/audit/export.ndjson`, `/api/v1/audit/export.csv`, `/api/v1/policies`, `/api/v1/policies/count` |
-| **OTLP-Telemetrie-Export zu Azure Monitor** | Verfügbar: `AGC_TELEMETRY_ENDPOINT` verdrahtet einen echten OTLP/HTTP-Exporter in jeden aufgenommenen Span |
+| **OTLP-Telemetrie-Export zu Azure Monitor** | Verfügbar: `AGC_TELEMETRY_ENDPOINT` verdrahtet einen echten OTLP/HTTP-Exporter in jeden aufgenommenen Span; `AGC_TELEMETRY_MANAGED_IDENTITY` authentifiziert ihn mit einem Managed-Identity-Token, kein Client-Secret |
 | **Audit-Export zu Azure Monitor (DCR)** | Verfügbar: `agc-cli azure push-audit`, Managed-Identity-authentifiziert, kein Client-Secret |
 | **Microsoft-Graph-Agent-Lookup** | Verfügbar: `agc-cli azure list-agents` (App-Registrierungen mit Tag `agc-agent`) |
 | **YAML-Policy-DSL** | Verfügbar: `GovernancePolicy::from_yaml` parst YAML oder JSON (ein Parser, YAML ist ein JSON-Superset); `agc-cli policy validate` für Offline-Checks |

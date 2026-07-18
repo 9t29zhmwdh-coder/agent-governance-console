@@ -352,7 +352,7 @@ async fn ingest_trace_exports_via_otlp_when_telemetry_is_configured() {
         cfg.telemetry.enabled = true;
         cfg.telemetry.endpoint = Some(format!("{}/v1/traces", server.uri()));
         cfg.telemetry.service_name = "agc-test".into();
-        let state = AppState::from_config(&cfg);
+        let state = AppState::from_config(&cfg).await;
         assert!(state.otlp.is_some(), "OTLP exporter should have been constructed");
 
         let app_router = create_router(state);
@@ -379,6 +379,48 @@ async fn ingest_trace_exports_via_otlp_when_telemetry_is_configured() {
     })
     .await
     .expect("ingest with OTLP telemetry did not complete within 10s");
+}
+
+#[tokio::test]
+async fn otlp_managed_identity_token_fetch_failure_leaves_telemetry_enabled_without_a_header() {
+    // Real end-to-end proof of the graceful-degradation path: with
+    // use_managed_identity set, from_config tries the *real* default IMDS
+    // endpoint (agc_azure::managed_identity::DEFAULT_IMDS_ENDPOINT), which
+    // is unreachable here (this test doesn't run on Azure) and times out
+    // after 2s (a real bug found and fixed earlier: IMDS silently hangs off
+    // Azure without a client-side timeout). Confirms from_config still
+    // builds a working OTLP exporter afterward instead of leaving telemetry
+    // off or hanging the whole startup -- not just that the code compiles.
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/traces"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+
+        let mut cfg = agc_api::default_config();
+        cfg.telemetry.enabled = true;
+        cfg.telemetry.endpoint = Some(format!("{}/v1/traces", server.uri()));
+        cfg.telemetry.service_name = "agc-test".into();
+        cfg.telemetry.use_managed_identity = true;
+
+        let state = AppState::from_config(&cfg).await;
+        assert!(state.otlp.is_some(), "OTLP exporter should still be constructed after an IMDS timeout");
+        assert!(!state.otlp_authenticated, "no token was actually obtained, so this must stay false even though it was requested");
+
+        let app_router = create_router(state);
+        let response = post_tenant_json(
+            app_router,
+            "/api/v1/traces",
+            TENANT,
+            span_json("agent-1", "info", "tool_call", json!({})),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CREATED, "ingestion still works even though the OTLP export has no auth header");
+    })
+    .await
+    .expect("managed-identity fallback path did not complete within 10s");
 }
 
 #[tokio::test]

@@ -129,6 +129,7 @@ mod tests {
             endpoint: Some("https://example.azure.com/otlp".into()),
             service_name: "agc".into(),
             include_agent_ids: false,
+            ..Default::default()
         };
         let sink = TelemetrySink::from_config(&cfg);
         assert!(sink.is_enabled());

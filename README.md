@@ -46,7 +46,7 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **Policy loading & real-time gating via API** | Available: `POST /api/v1/policies`; every ingested span is evaluated against loaded policies, `block` rules reject the span with `403` |
 | **Audit query & export via API** | Available: `GET /api/v1/audit?limit=&offset=`, `GET /api/v1/audit/export.ndjson` / `.csv` |
 | **REST API** | `/health`, `/api/v1/tenants`, `/api/v1/traces`, `/api/v1/traces/count`, `/api/v1/traces/{trace_id}`, `/api/v1/audit`, `/api/v1/audit/count`, `/api/v1/audit/export.ndjson`, `/api/v1/audit/export.csv`, `/api/v1/policies`, `/api/v1/policies/count` |
-| **OTLP telemetry export to Azure Monitor** | Available: `AGC_TELEMETRY_ENDPOINT` wires a real OTLP/HTTP exporter into every ingested span |
+| **OTLP telemetry export to Azure Monitor** | Available: `AGC_TELEMETRY_ENDPOINT` wires a real OTLP/HTTP exporter into every ingested span; `AGC_TELEMETRY_MANAGED_IDENTITY` authenticates it with a Managed Identity token, no client secret |
 | **Audit export to Azure Monitor (DCR)** | Available: `agc-cli azure push-audit`, Managed-Identity-authenticated, no client secret |
 | **Microsoft Graph agent lookup** | Available: `agc-cli azure list-agents` (app registrations tagged `agc-agent`) |
 | **YAML policy DSL** | Available: `GovernancePolicy::from_yaml` parses YAML or JSON (one parser, YAML is a JSON superset); `agc-cli policy validate` for offline checks |

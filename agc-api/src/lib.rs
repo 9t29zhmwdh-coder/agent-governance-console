@@ -43,6 +43,12 @@ pub struct AppState {
     /// Real OTLP span exporter, present only when telemetry is enabled and
     /// configured with an endpoint (see `agc_core::TelemetryConfig`).
     pub otlp: Option<Arc<agc_azure::OtlpExporter>>,
+    /// `true` only if `otlp` is set AND a Managed Identity token was
+    /// actually attached to it as an `Authorization` header -- distinct
+    /// from `cfg.telemetry.use_managed_identity`, which just records that
+    /// authentication was *requested*; the token fetch itself can fail
+    /// (e.g. off Azure) and export still proceeds unauthenticated.
+    pub otlp_authenticated: bool,
     /// If set, each tenant's audit log persists to `{dir}/{tenant_id}.sqlite`
     /// (created lazily on that tenant's first request) instead of vanishing
     /// with an in-memory log when the process exits.
@@ -59,6 +65,7 @@ impl AppState {
             tenants: Arc::new(Mutex::new(HashMap::new())),
             policy: Arc::new(Mutex::new(PolicyEngine::new())),
             otlp: None,
+            otlp_authenticated: false,
             audit_db_dir: None,
             auth: AuthConfig::disabled(),
         }
@@ -78,16 +85,38 @@ impl AppState {
     /// created lazily on each tenant's first request). If telemetry is
     /// enabled with an endpoint, also constructs a real OTLP exporter; a
     /// misconfigured endpoint logs a warning and leaves telemetry off
-    /// rather than failing the whole server startup over it.
-    pub fn from_config(cfg: &ConsoleConfig) -> Self {
+    /// rather than failing the whole server startup over it. Async because
+    /// `cfg.telemetry.use_managed_identity` fetches a real Microsoft Entra
+    /// token (via IMDS) before the exporter is built; a token fetch failure
+    /// is handled the same way -- logged, telemetry stays off, startup
+    /// still succeeds.
+    pub async fn from_config(cfg: &ConsoleConfig) -> Self {
         let mut state = match &cfg.audit_db_dir {
             Some(dir) => Self::with_audit_db_dir(dir.clone()),
             None => Self::new(),
         };
         if cfg.telemetry.enabled {
             if let Some(endpoint) = &cfg.telemetry.endpoint {
-                match agc_azure::OtlpExporter::new(endpoint, &cfg.telemetry.service_name) {
-                    Ok(exporter) => state.otlp = Some(Arc::new(exporter)),
+                let token = if cfg.telemetry.use_managed_identity {
+                    let mut credential = agc_azure::ManagedIdentityCredential::new();
+                    if let Some(client_id) = &cfg.telemetry.managed_identity_client_id {
+                        credential = credential.with_client_id(client_id.clone());
+                    }
+                    match credential.get_token("https://monitor.azure.com/").await {
+                        Ok(token) => Some(token.access_token),
+                        Err(e) => {
+                            tracing::warn!("failed to fetch Managed Identity token for OTLP export, proceeding without an Authorization header: {e}");
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                match agc_azure::OtlpExporter::new(endpoint, &cfg.telemetry.service_name, token.as_deref()) {
+                    Ok(exporter) => {
+                        state.otlp_authenticated = token.is_some();
+                        state.otlp = Some(Arc::new(exporter));
+                    }
                     Err(e) => tracing::warn!("failed to initialize OTLP exporter, telemetry stays disabled: {e}"),
                 }
             }

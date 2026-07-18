@@ -66,7 +66,7 @@ AGC is a Rust workspace with four crates. The `agc-core` library contains all do
 - `ManagedIdentityCredential`: AAD tokens via IMDS (system- or user-assigned), 2s client timeout
 - `MonitorIngestClient`: pushes `AuditRecord`s to an Azure Monitor DCR (Logs Ingestion API)
 - `GraphClient`: lists Entra ID app registrations tagged `agc-agent`
-- `OtlpExporter`: real OTLP/HTTP span export, batch processor (own background thread, never blocks the caller)
+- `OtlpExporter`: real OTLP/HTTP span export, batch processor (own background thread, never blocks the caller); optional Managed Identity `Authorization: Bearer` header (`AGC_TELEMETRY_MANAGED_IDENTITY`), no client secret
 
 ## Data Flow: Trace Ingestion + Policy Evaluation
 
@@ -113,6 +113,7 @@ pub struct AppState {
     tenants: Arc<Mutex<HashMap<String, Arc<TenantStore>>>>, // per-tenant
     pub policy: Arc<Mutex<PolicyEngine>>,                    // global
     pub otlp: Option<Arc<agc_azure::OtlpExporter>>,          // global
+    pub otlp_authenticated: bool,                            // true only if a Managed Identity token was actually attached
     audit_db_dir: Option<PathBuf>,
     pub auth: AuthConfig, // global, see "RBAC" below
 }

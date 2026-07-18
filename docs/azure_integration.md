@@ -7,7 +7,7 @@ via **Managed Identity** — no client secret is ever configured:
 
 | Integration | Purpose | Required AAD Permissions |
 |-------------|---------|--------------------------|
-| Azure Monitor (OTLP) | Telemetry span export | none (endpoint-based, no auth on the OTLP path itself in this release) |
+| Azure Monitor (OTLP) | Telemetry span export | none required for a self-hosted OTel Collector target; `Monitoring Metrics Publisher` on the DCR if pointed at Azure Monitor's native OTLP endpoint with `AGC_TELEMETRY_MANAGED_IDENTITY` set |
 | Azure Monitor Logs Ingestion | Audit record push to a DCR | `Monitoring Metrics Publisher` on the DCR |
 | Microsoft Graph | Read agent app registrations | `Application.Read.All` |
 | Managed Identity | Token acquisition for the two above | none (identity, not a permission) |
@@ -72,6 +72,30 @@ Insights instead of Azure Monitor's native OTLP endpoint, point
 `AGC_TELEMETRY_ENDPOINT` at the collector's `/v1/traces` path and use the
 connection string `azure_setup.sh` prints in the collector's own Azure
 Monitor exporter config.
+
+### Managed Identity authentication for OTLP
+
+Azure Monitor's native OTLP endpoint requires a Microsoft Entra token
+(`https://monitor.azure.com/.default`, `Monitoring Metrics Publisher` on
+the target DCR); a self-hosted OpenTelemetry Collector typically doesn't.
+Set `AGC_TELEMETRY_MANAGED_IDENTITY=1` to fetch one via Managed Identity
+(system-assigned) and send it as the export's `Authorization: Bearer`
+header -- no client secret involved:
+
+```bash
+AGC_TELEMETRY_ENDPOINT="https://<region>.otelcollector.azure.com/v1/traces" \
+AGC_TELEMETRY_MANAGED_IDENTITY=1 \
+cargo run --bin agc-api
+# or, for a user-assigned identity:
+AGC_TELEMETRY_MANAGED_IDENTITY_CLIENT_ID="<client-id>" \
+cargo run --bin agc-api
+```
+
+If the token fetch fails (e.g. not actually running on Azure), a warning
+is logged and export proceeds without the header rather than failing
+startup. **Known limitation:** the token is fetched once, at startup, and
+not refreshed for the life of the process -- restart the server (or wait
+for a future refresh mechanism) before a long-lived token expires.
 
 ---
 
