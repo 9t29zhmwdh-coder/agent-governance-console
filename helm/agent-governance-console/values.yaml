@@ -1,0 +1,127 @@
+# Default values for agent-governance-console.
+# See docs/helm.md for the full field reference.
+
+replicaCount: 1
+
+image:
+  # Build and push your own image from the repo's root Dockerfile
+  # (`docker build -t <repository>:<tag> .`); no public image is
+  # published by this project yet.
+  repository: agent-governance-console
+  tag: ""  # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: agc.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Liveness/readiness both probe GET /health -- a lightweight in-process
+# check (no DB/network round-trip), matching how the server itself
+# reports readiness to serve traffic.
+probes:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 15
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 10
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+
+# Governance policy files, mounted read-only and watched for hot-reload
+# (AGC_POLICY_DIR) -- one ConfigMap key per policy file. Empty by default:
+# operators load policies via POST /api/v1/policies instead, or set this.
+policies: {}
+# policies:
+#   error-gate.yaml: |
+#     policy_id: p1
+#     name: Error gate
+#     agent_scope: []
+#     rules:
+#       - rule_id: r1
+#         description: Block on error
+#         condition: {type: span_level_at_least, level: error}
+#         action: {type: block, reason: "too severe"}
+
+# Persists each tenant's audit log to a PVC (AGC_AUDIT_DB_DIR) instead of
+# losing it on every pod restart. Disabled by default (in-memory only),
+# matching this project's own local-dev default.
+persistence:
+  enabled: false
+  size: 1Gi
+  storageClassName: ""
+  accessMode: ReadWriteOnce
+
+# RBAC for the REST API itself (see docs/api_reference.md), not to be
+# confused with Kubernetes RBAC. Both are opt-in and off by default.
+rbac:
+  # "hmac" (AGC_JWT_SECRET, from `existingSecret`/`existingSecretKey`) or
+  # "aad" (AGC_AAD_TENANT_ID + AGC_AAD_AUDIENCE) or "" to leave RBAC
+  # disabled (every request treated as Admin, this project's own default).
+  mode: ""
+  hmac:
+    existingSecret: ""
+    existingSecretKey: "jwt-secret"
+  aad:
+    tenantId: ""
+    audience: "api://agc"
+
+# OTLP telemetry export (see docs/azure_integration.md). Disabled by
+# default.
+telemetry:
+  enabled: false
+  endpoint: ""
+  serviceName: "agc"
+  managedIdentity: false
+  managedIdentityClientId: ""
+
+# Azure Workload Identity federation for AKS (see
+# https://learn.microsoft.com/azure/aks/workload-identity-overview):
+# annotates the ServiceAccount and labels the Pod so Managed-Identity
+# token requests (telemetry, agc-cli azure commands run from a sidecar/
+# job) resolve without any client secret. Leave clientId empty to skip.
+workloadIdentity:
+  clientId: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+extraEnv: []
+# extraEnv:
+#   - name: RUST_LOG
+#     value: info

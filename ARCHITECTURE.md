@@ -186,6 +186,12 @@ so a bad edit to one file can't silently wipe a working configuration.
 
 See `docs/azure_integration.md` for OTLP, Microsoft Graph and Log Analytics DCR setup, and what's mock-tested vs. verified against a real Azure subscription.
 
+## Deployment
+
+`Dockerfile` (repo root): multi-stage build, `rust:1.90-bookworm` compiling `agc-api`'s release binary, shipped in a minimal `debian:bookworm-slim` runtime as a non-root user. `AGC_BIND` (new; defaults to `127.0.0.1:8080` outside a container, overridden to `0.0.0.0:8080` in the image) controls the bind address -- required for the port to actually be reachable from outside the container/pod, a real bug found while building the Helm chart (see `docs/helm.md`).
+
+`helm/agent-governance-console`: Deployment, Service, optional Ingress/HorizontalPodAutoscaler/PersistentVolumeClaim (for `AGC_AUDIT_DB_DIR`)/ConfigMap (for `AGC_POLICY_DIR`), RBAC env wiring for both HMAC and Entra ID modes, and Azure Workload Identity annotations for AKS. See `docs/helm.md` for the full field reference and how it was verified (real `helm lint`/`helm template`/`kubectl apply --dry-run=server`/`helm install` against a local k3s cluster, not just written-and-hoped).
+
 ## External Dependencies
 
 | Crate | Purpose |

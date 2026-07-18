@@ -7,6 +7,9 @@ async fn main() {
         .init();
 
     let mut cfg = default_config();
+    if let Ok(bind) = std::env::var("AGC_BIND") {
+        cfg.api_bind = bind;
+    }
     if let Ok(dir) = std::env::var("AGC_AUDIT_DB_DIR") {
         cfg.audit_db_dir = Some(dir.into());
     }
