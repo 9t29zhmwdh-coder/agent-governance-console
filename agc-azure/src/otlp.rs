@@ -1,7 +1,7 @@
 use crate::error::AzureError;
 use opentelemetry::trace::{Span, Tracer, TracerProvider as _};
 use opentelemetry::KeyValue;
-use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::trace::{SdkTracer, SdkTracerProvider};
 
 /// Real OTLP (HTTP) span exporter, for shipping AGC trace spans to any
@@ -25,12 +25,25 @@ impl OtlpExporter {
     /// `https://<region>.otelcollector.azure.com/v1/traces`, exactly as
     /// `docs/azure_integration.md` documents it) — a programmatically set
     /// endpoint is used verbatim, not treated as a base URL to append to.
-    pub fn new(endpoint: &str, service_name: &str) -> Result<Self, AzureError> {
-        let exporter = opentelemetry_otlp::SpanExporter::builder()
-            .with_http()
-            .with_endpoint(endpoint)
-            .build()
-            .map_err(|e| AzureError::Otlp(e.to_string()))?;
+    ///
+    /// `bearer_token`, if given, is sent as a static `Authorization: Bearer
+    /// <token>` header on every export request -- the same header shape
+    /// Azure Monitor's native OTLP endpoint requires (a Microsoft Entra
+    /// token scoped to `https://monitor.azure.com/.default`, `Monitoring
+    /// Metrics Publisher` on the target DCR). It is fetched once, by the
+    /// caller, before construction: this exporter has no way to refresh it
+    /// mid-flight, so a long-lived process should be restarted (or a future
+    /// version should add refresh) before the token expires. A self-hosted
+    /// OpenTelemetry Collector target typically needs no token at all --
+    /// pass `None`.
+    pub fn new(endpoint: &str, service_name: &str, bearer_token: Option<&str>) -> Result<Self, AzureError> {
+        let mut builder = opentelemetry_otlp::SpanExporter::builder().with_http().with_endpoint(endpoint);
+        if let Some(token) = bearer_token {
+            let mut headers = std::collections::HashMap::new();
+            headers.insert("Authorization".to_string(), format!("Bearer {token}"));
+            builder = builder.with_headers(headers);
+        }
+        let exporter = builder.build().map_err(|e| AzureError::Otlp(e.to_string()))?;
 
         // Batch, not simple: the batch processor runs its own dedicated OS
         // thread and only ever receives spans over a channel from
@@ -80,7 +93,7 @@ mod tests {
                 .await;
 
             let endpoint = format!("{}/v1/traces", server.uri());
-            let exporter = OtlpExporter::new(&endpoint, "agc-test").unwrap();
+            let exporter = OtlpExporter::new(&endpoint, "agc-test", None).unwrap();
             exporter.record_span("tool_call", 42);
             // Dropping the provider shuts down the batch processor, which
             // force-flushes any pending spans before the drop returns.
@@ -89,6 +102,33 @@ mod tests {
             let requests = server.received_requests().await.unwrap();
             assert_eq!(requests.len(), 1);
             assert_eq!(requests[0].url.path(), "/v1/traces");
+        })
+        .await
+        .expect("record_span/shutdown did not complete within 10s");
+    }
+
+    #[tokio::test]
+    async fn record_span_sends_the_bearer_token_as_an_authorization_header() {
+        // Proves the token actually reaches the wire as a real
+        // `Authorization: Bearer <token>` header -- the exact shape Azure
+        // Monitor's native OTLP endpoint requires -- not just that
+        // construction with a token succeeds.
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/v1/traces"))
+                .and(wiremock::matchers::header("authorization", "Bearer test-managed-identity-token"))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&server)
+                .await;
+
+            let endpoint = format!("{}/v1/traces", server.uri());
+            let exporter = OtlpExporter::new(&endpoint, "agc-test", Some("test-managed-identity-token")).unwrap();
+            exporter.record_span("tool_call", 42);
+            drop(exporter);
+
+            let requests = server.received_requests().await.unwrap();
+            assert_eq!(requests.len(), 1, "the mock only matches requests carrying the expected Authorization header");
         })
         .await
         .expect("record_span/shutdown did not complete within 10s");

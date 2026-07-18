@@ -15,9 +15,15 @@ async fn main() {
         cfg.telemetry.endpoint = Some(endpoint);
         cfg.telemetry.service_name =
             std::env::var("AGC_TELEMETRY_SERVICE_NAME").unwrap_or_else(|_| "agc".to_string());
+        if let Ok(client_id) = std::env::var("AGC_TELEMETRY_MANAGED_IDENTITY_CLIENT_ID") {
+            cfg.telemetry.use_managed_identity = true;
+            cfg.telemetry.managed_identity_client_id = Some(client_id);
+        } else if std::env::var("AGC_TELEMETRY_MANAGED_IDENTITY").is_ok() {
+            cfg.telemetry.use_managed_identity = true;
+        }
     }
 
-    let mut state = AppState::from_config(&cfg);
+    let mut state = AppState::from_config(&cfg).await;
     if let Ok(secret) = std::env::var("AGC_JWT_SECRET") {
         state.auth = AuthConfig::hmac(secret);
         tracing::info!("RBAC enabled: HS256 JWT, shared secret");
@@ -34,7 +40,8 @@ async fn main() {
         tracing::info!("Audit logs are in-memory only (set AGC_AUDIT_DB_DIR to persist per tenant)");
     }
     if state.otlp.is_some() {
-        tracing::info!("OTLP telemetry export enabled to {}", cfg.telemetry.endpoint.as_deref().unwrap_or(""));
+        let auth = if state.otlp_authenticated { ", Managed Identity authenticated" } else { ", unauthenticated" };
+        tracing::info!("OTLP telemetry export enabled to {}{auth}", cfg.telemetry.endpoint.as_deref().unwrap_or(""));
     } else {
         tracing::info!("Telemetry is disabled (set AGC_TELEMETRY_ENDPOINT to enable OTLP export)");
     }
