@@ -54,6 +54,10 @@ AGC is a Rust workspace with four crates. The `agc-core` library contains all do
 - `AuditOutcome`: Allowed / Blocked / Warned / Alerted
 - `AuditLog`: append-only log; NDJSON export (Azure Log Analytics), CSV export
 
+### `sentinel`
+- `SentinelRule`: name, description, severity, KQL query; `to_kql()`, `to_arm_resource()` (`Microsoft.SecurityInsights/alertRules`, kind `Scheduled`)
+- `builtin_rules(table)`: 4 built-in governance-focused analytics rules, parameterized by the Log Analytics custom table name; exposed via `agc-cli sentinel export --format kql|arm`, see [docs/sentinel.md](docs/sentinel.md)
+
 ### `telemetry`
 - `TelemetryConfig`: opt-in flag, OTLP endpoint, service name, agent-ID inclusion flag
 - `TelemetrySink`: sync facade used by `agc-core` itself (debug-logs when enabled); `agc-api` additionally wires a real `agc_azure::OtlpExporter` into `AppState` when telemetry is configured (see below), since a real async HTTP exporter doesn't belong in a dependency-light sync core library

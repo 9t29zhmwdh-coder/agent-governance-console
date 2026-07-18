@@ -10,7 +10,7 @@
 
 **Governance, Tracing, Policy Enforcement und Observability für agentische Workflows.**
 
-Ein Rust-Workspace für Tracing, Policy Enforcement und Audit-Logging von AI-Agent-Aktivität, mit echtem Azure-Monitor-Telemetrie-/Audit-Export und Microsoft-Graph-Integration; Microsoft Sentinel ist noch auf der Roadmap.
+Ein Rust-Workspace für Tracing, Policy Enforcement und Audit-Logging von AI-Agent-Aktivität, mit echtem Azure-Monitor-Telemetrie-/Audit-Export, Microsoft-Graph-Integration und Microsoft-Sentinel-Analytics-Rule-Export.
 
 Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.microsoft.com/de-de/azure/machine-learning/concept-responsible-ai) und konzipiert für Enterprise KI-Governance-Teams in regulierten Microsoft-Cloud-Umgebungen.
 
@@ -52,7 +52,7 @@ Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-
 | **Policy-Hot-Reload** | Verfügbar: `AGC_POLICY_DIR` lädt und aktualisiert jede Policy-Datei in einem Verzeichnis live; ein fehlerhafter Edit behält den vorherigen Policy-Stand statt ihn zu löschen |
 | **OPA/Rego-Export** | Verfügbar: `agc-cli policy to-rego` rendert einen strukturellen Rego-Stub pro Policy — ein Ausgangspunkt zum manuellen Portieren, keine vollständige semantische Übersetzung |
 | **RBAC für REST-API** | Verfügbar: `AGC_JWT_SECRET` (HS256) oder `AGC_AAD_TENANT_ID` (Entra ID RS256) schützt Schreibzugriffe mit `Admin`, Lesezugriffe brauchen `Viewer`; opt-in, standardmässig aus |
-| **Microsoft-Sentinel-Export** | Geplant ab v1.0.0, siehe [ROADMAP.md](ROADMAP.md) |
+| **Microsoft-Sentinel-Export** | Verfügbar: `agc-cli sentinel export --format kql\|arm` erzeugt 4 eingebaute Analytics-Rule-Vorlagen aus der AGC-Audit-Tabelle, als KQL-Dateien oder als deploybares ARM-Template — siehe [docs/sentinel.md](docs/sentinel.md) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
 

@@ -5,11 +5,13 @@
 
 pub mod audit;
 pub mod policy;
+pub mod sentinel;
 pub mod telemetry;
 pub mod trace;
 
 pub use audit::{AuditLog, AuditOutcome, AuditRecord};
 pub use policy::{GovernancePolicy, PolicyAction, PolicyCondition, PolicyEngine, PolicyRule};
+pub use sentinel::{builtin_rules as sentinel_builtin_rules, SentinelRule};
 pub use telemetry::{TelemetryConfig, TelemetrySink};
 pub use trace::{TraceLevel, TraceSpan, TraceStore};
 
