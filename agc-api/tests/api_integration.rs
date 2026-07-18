@@ -6,6 +6,8 @@ use serde_json::json;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+const TENANT: &str = "tenant-a";
+
 async fn app() -> axum::Router {
     create_router(AppState::new())
 }
@@ -29,6 +31,36 @@ fn span_json(agent_id: &str, level: &str, operation: &str, attributes: serde_jso
     })
 }
 
+/// GET a tenant-scoped endpoint with the `X-Tenant-Id` header set.
+async fn get_tenant(app: axum::Router, uri: &str, tenant: &str) -> axum::response::Response {
+    app.oneshot(Request::builder().uri(uri).header("X-Tenant-Id", tenant).body(Body::empty()).unwrap())
+        .await
+        .unwrap()
+}
+
+/// POST a tenant-scoped JSON endpoint (e.g. `/api/v1/traces`) with the
+/// `X-Tenant-Id` header set.
+async fn post_tenant_json(
+    app: axum::Router,
+    uri: &str,
+    tenant: &str,
+    body: serde_json::Value,
+) -> axum::response::Response {
+    app.oneshot(
+        Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("content-type", "application/json")
+            .header("X-Tenant-Id", tenant)
+            .body(Body::from(body.to_string()))
+            .unwrap(),
+    )
+    .await
+    .unwrap()
+}
+
+/// POST a global (non-tenant-scoped) JSON endpoint, e.g. `/api/v1/policies`
+/// (policies are shared governance across all tenants, not tenant-scoped).
 async fn post_json(app: axum::Router, uri: &str, body: serde_json::Value) -> axum::response::Response {
     app.oneshot(
         Request::builder()
@@ -59,39 +91,32 @@ async fn health_returns_ok() {
 
 #[tokio::test]
 async fn traces_count_starts_at_zero() {
-    let response = app()
-        .await
-        .oneshot(
-            Request::builder()
-                .uri("/api/v1/traces/count")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let response = get_tenant(app().await, "/api/v1/traces/count", TENANT).await;
 
     assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let json = body_json(response).await;
     assert_eq!(json["span_count"], 0);
+    assert_eq!(json["tenant_id"], TENANT);
+}
+
+#[tokio::test]
+async fn traces_count_without_tenant_header_is_rejected() {
+    let response = app()
+        .await
+        .oneshot(Request::builder().uri("/api/v1/traces/count").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let json = body_json(response).await;
+    assert_eq!(json["error"], "missing_tenant_id");
 }
 
 #[tokio::test]
 async fn audit_count_starts_at_zero() {
-    let response = app()
-        .await
-        .oneshot(
-            Request::builder()
-                .uri("/api/v1/audit/count")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let response = get_tenant(app().await, "/api/v1/audit/count", TENANT).await;
 
     assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let json = body_json(response).await;
     assert_eq!(json["record_count"], 0);
 }
 
@@ -109,8 +134,7 @@ async fn policies_count_starts_at_zero() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let json = body_json(response).await;
     assert_eq!(json["policy_count"], 0);
 }
 
@@ -132,11 +156,34 @@ async fn unknown_route_returns_404() {
 
 #[tokio::test]
 async fn ingest_trace_is_allowed_with_no_policies_loaded() {
-    let response = post_json(app().await, "/api/v1/traces", span_json("agent-1", "info", "tool_call", json!({})))
-        .await;
+    let response = post_tenant_json(
+        app().await,
+        "/api/v1/traces",
+        TENANT,
+        span_json("agent-1", "info", "tool_call", json!({})),
+    )
+    .await;
     assert_eq!(response.status(), StatusCode::CREATED);
     let json = body_json(response).await;
     assert_eq!(json["policy_events"], 0);
+    assert_eq!(json["tenant_id"], TENANT);
+}
+
+#[tokio::test]
+async fn ingest_trace_without_tenant_header_is_rejected() {
+    let response = app()
+        .await
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/traces")
+                .header("content-type", "application/json")
+                .body(Body::from(span_json("agent-1", "info", "tool_call", json!({})).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
@@ -156,9 +203,10 @@ async fn ingest_trace_is_blocked_by_matching_block_rule() {
     let load = post_json(app_router.clone(), "/api/v1/policies", policy).await;
     assert_eq!(load.status(), StatusCode::CREATED);
 
-    let response = post_json(
+    let response = post_tenant_json(
         app_router.clone(),
         "/api/v1/traces",
+        TENANT,
         span_json("agent-1", "error", "risky_call", json!({})),
     )
     .await;
@@ -167,10 +215,7 @@ async fn ingest_trace_is_blocked_by_matching_block_rule() {
     assert_eq!(json["rule_id"], "r1");
 
     // A blocked span must not be persisted to the trace store.
-    let count = app_router
-        .oneshot(Request::builder().uri("/api/v1/traces/count").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let count = get_tenant(app_router, "/api/v1/traces/count", TENANT).await;
     let count_json = body_json(count).await;
     assert_eq!(count_json["span_count"], 0);
 }
@@ -191,9 +236,10 @@ async fn ingest_trace_records_audit_entry_for_warn_rule_and_still_ingests() {
     });
     post_json(app_router.clone(), "/api/v1/policies", policy).await;
 
-    let response = post_json(
+    let response = post_tenant_json(
         app_router.clone(),
         "/api/v1/traces",
+        TENANT,
         span_json("agent-1", "info", "tool_call", json!({})),
     )
     .await;
@@ -201,10 +247,7 @@ async fn ingest_trace_records_audit_entry_for_warn_rule_and_still_ingests() {
     let json = body_json(response).await;
     assert_eq!(json["policy_events"], 1);
 
-    let audit_count = app_router
-        .oneshot(Request::builder().uri("/api/v1/audit/count").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let audit_count = get_tenant(app_router, "/api/v1/audit/count", TENANT).await;
     assert_eq!(body_json(audit_count).await["record_count"], 1);
 }
 
@@ -215,18 +258,10 @@ async fn get_trace_returns_ingested_spans() {
     let mut span = span_json("agent-1", "info", "tool_call", json!({}));
     span["trace_id"] = json!(trace_id);
 
-    let ingest = post_json(app_router.clone(), "/api/v1/traces", span).await;
+    let ingest = post_tenant_json(app_router.clone(), "/api/v1/traces", TENANT, span).await;
     assert_eq!(ingest.status(), StatusCode::CREATED);
 
-    let response = app_router
-        .oneshot(
-            Request::builder()
-                .uri(format!("/api/v1/traces/{trace_id}"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let response = get_tenant(app_router, &format!("/api/v1/traces/{trace_id}"), TENANT).await;
     assert_eq!(response.status(), StatusCode::OK);
     let json = body_json(response).await;
     assert_eq!(json["spans"].as_array().unwrap().len(), 1);
@@ -234,16 +269,7 @@ async fn get_trace_returns_ingested_spans() {
 
 #[tokio::test]
 async fn get_trace_returns_404_for_unknown_trace() {
-    let response = app()
-        .await
-        .oneshot(
-            Request::builder()
-                .uri(format!("/api/v1/traces/{}", Uuid::new_v4()))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let response = get_tenant(app().await, &format!("/api/v1/traces/{}", Uuid::new_v4()), TENANT).await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -278,13 +304,10 @@ async fn audit_list_is_paginated() {
                 "action": {"type": "warn", "message": "m"}}]
         });
         post_json(app_router.clone(), "/api/v1/policies", policy).await;
-        post_json(app_router.clone(), "/api/v1/traces", span).await;
+        post_tenant_json(app_router.clone(), "/api/v1/traces", TENANT, span).await;
     }
 
-    let response = app_router
-        .oneshot(Request::builder().uri("/api/v1/audit?limit=2&offset=0").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let response = get_tenant(app_router, "/api/v1/audit?limit=2&offset=0", TENANT).await;
     assert_eq!(response.status(), StatusCode::OK);
     let json = body_json(response).await;
     assert!(json["total"].as_u64().unwrap() >= 3);
@@ -293,22 +316,14 @@ async fn audit_list_is_paginated() {
 
 #[tokio::test]
 async fn audit_export_ndjson_has_correct_content_type() {
-    let app_router = app().await;
-    let response = app_router
-        .oneshot(Request::builder().uri("/api/v1/audit/export.ndjson").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let response = get_tenant(app().await, "/api/v1/audit/export.ndjson", TENANT).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers().get("content-type").unwrap(), "application/x-ndjson");
 }
 
 #[tokio::test]
 async fn audit_export_csv_has_correct_content_type_and_header() {
-    let app_router = app().await;
-    let response = app_router
-        .oneshot(Request::builder().uri("/api/v1/audit/export.csv").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let response = get_tenant(app().await, "/api/v1/audit/export.csv", TENANT).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers().get("content-type").unwrap(), "text/csv");
     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
@@ -337,13 +352,14 @@ async fn ingest_trace_exports_via_otlp_when_telemetry_is_configured() {
         cfg.telemetry.enabled = true;
         cfg.telemetry.endpoint = Some(format!("{}/v1/traces", server.uri()));
         cfg.telemetry.service_name = "agc-test".into();
-        let state = AppState::from_config(&cfg).unwrap();
+        let state = AppState::from_config(&cfg);
         assert!(state.otlp.is_some(), "OTLP exporter should have been constructed");
 
         let app_router = create_router(state);
-        let response = post_json(
+        let response = post_tenant_json(
             app_router,
             "/api/v1/traces",
+            TENANT,
             span_json("agent-1", "info", "tool_call", json!({})),
         )
         .await;
@@ -403,9 +419,10 @@ async fn policy_hot_reload_picks_up_a_new_file_and_enforces_it() {
         assert!(loaded, "hot-reloaded policy never showed up in /api/v1/policies/count");
 
         // The hot-reloaded policy must actually gate ingestion, not just be counted.
-        let response = post_json(
+        let response = post_tenant_json(
             app_router,
             "/api/v1/traces",
+            TENANT,
             span_json("agent-1", "error", "risky_call", json!({})),
         )
         .await;
@@ -422,15 +439,81 @@ async fn app_state_is_isolated_between_instances() {
     let app1 = create_router(AppState::new());
     let app2 = create_router(AppState::new());
 
-    let r1 = app1
-        .oneshot(Request::builder().uri("/api/v1/traces/count").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    let r2 = app2
-        .oneshot(Request::builder().uri("/api/v1/traces/count").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let r1 = get_tenant(app1, "/api/v1/traces/count", TENANT).await;
+    let r2 = get_tenant(app2, "/api/v1/traces/count", TENANT).await;
 
     assert_eq!(r1.status(), StatusCode::OK);
     assert_eq!(r2.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn tenants_have_isolated_trace_and_audit_stores() {
+    let app_router = app().await;
+
+    let ingest = post_tenant_json(
+        app_router.clone(),
+        "/api/v1/traces",
+        "tenant-a",
+        span_json("agent-1", "info", "tool_call", json!({})),
+    )
+    .await;
+    assert_eq!(ingest.status(), StatusCode::CREATED);
+
+    let a_count = get_tenant(app_router.clone(), "/api/v1/traces/count", "tenant-a").await;
+    assert_eq!(body_json(a_count).await["span_count"], 1);
+
+    // A different tenant must see none of tenant-a's data -- this is the
+    // whole point of "tenant isolation in trace/audit stores", not just a
+    // filtered view over one shared store.
+    let b_count = get_tenant(app_router, "/api/v1/traces/count", "tenant-b").await;
+    assert_eq!(body_json(b_count).await["span_count"], 0);
+}
+
+#[tokio::test]
+async fn tenants_endpoint_lists_tenants_seen_so_far() {
+    let app_router = app().await;
+
+    let before = app_router
+        .clone()
+        .oneshot(Request::builder().uri("/api/v1/tenants").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(body_json(before).await["tenants"].as_array().unwrap().len(), 0);
+
+    get_tenant(app_router.clone(), "/api/v1/traces/count", "tenant-a").await;
+    get_tenant(app_router.clone(), "/api/v1/traces/count", "tenant-b").await;
+
+    let after = app_router
+        .oneshot(Request::builder().uri("/api/v1/tenants").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let tenants: Vec<String> =
+        serde_json::from_value(body_json(after).await["tenants"].clone()).unwrap();
+    assert_eq!(tenants, vec!["tenant-a".to_string(), "tenant-b".to_string()]);
+}
+
+#[tokio::test]
+async fn policies_stay_global_across_tenants() {
+    // Policies are explicitly NOT tenant-scoped per ROADMAP.md ("tenant
+    // isolation in trace/audit stores" -- policy is deliberately excluded):
+    // a policy loaded once must gate ingestion for every tenant.
+    let app_router = app().await;
+    let policy = json!({
+        "policy_id": "p1", "name": "Error gate", "agent_scope": [],
+        "rules": [{"rule_id": "r1", "description": "Block errors",
+            "condition": {"type": "span_level_at_least", "level": "error"},
+            "action": {"type": "block", "reason": "too severe"}}]
+    });
+    post_json(app_router.clone(), "/api/v1/policies", policy).await;
+
+    for tenant in ["tenant-a", "tenant-b"] {
+        let response = post_tenant_json(
+            app_router.clone(),
+            "/api/v1/traces",
+            tenant,
+            span_json("agent-1", "error", "risky_call", json!({})),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "policy should gate tenant {tenant} too");
+    }
 }

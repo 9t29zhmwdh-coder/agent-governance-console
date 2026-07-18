@@ -69,40 +69,74 @@ AGC is a Rust workspace with four crates. The `agc-core` library contains all do
 ```
 Agent Runtime
      │
-     │  POST /api/v1/traces  (TraceSpan JSON)
+     │  POST /api/v1/traces  (TraceSpan JSON, X-Tenant-Id header)
      ▼
   agc-api (ingest_trace handler)
      │
-     ├── PolicyEngine::evaluate(&span)          — real condition evaluation,
-     │       │ matched rules                       not just scope filtering
+     ├── TenantId extractor            — 400 if X-Tenant-Id is missing/empty,
+     │       │                            no silent "default tenant"
      │       ▼
-     │   AuditLog::append(AuditRecord { outcome: Blocked | Warned | Alerted })
+     ├── AppState::tenant_store(id)    — lazily creates this tenant's
+     │       │                            TraceStore + AuditLog (own SQLite
+     │       │                            file too, if AGC_AUDIT_DB_DIR set)
+     │       ▼
+     ├── PolicyEngine::evaluate(&span) — global, shared across all tenants;
+     │       │       matched rules       real condition evaluation, not
+     │       │                           just scope filtering
+     │       ▼
+     │   AuditLog::append(...)         — into THIS TENANT's audit log
      │       │
      │       ▼
      │   any rule Block? ──▶ yes ──▶ 403, span is NOT stored, stop here
      │       │ no
      │       ▼
-     ├── TraceStore::ingest(span)                — 201 Created
+     ├── TraceStore::ingest(span)      — into THIS TENANT's trace store, 201 Created
      │
      └── AppState.otlp.record_span(operation, duration_ms)
-              │ only if AGC_TELEMETRY_ENDPOINT is configured
+              │ only if AGC_TELEMETRY_ENDPOINT is configured (not tenant-scoped)
               ▼
           agc_azure::OtlpExporter ──HTTP──▶ Azure Monitor / OTLP collector
 ```
+
+## Multi-Tenancy
+
+`AppState` holds tenant stores behind its own lock, separate from the
+global `PolicyEngine` lock, so one tenant's traffic never serializes
+behind another's:
+
+```rust
+pub struct AppState {
+    tenants: Arc<Mutex<HashMap<String, Arc<TenantStore>>>>, // per-tenant
+    pub policy: Arc<Mutex<PolicyEngine>>,                    // global
+    pub otlp: Option<Arc<agc_azure::OtlpExporter>>,          // global
+    audit_db_dir: Option<PathBuf>,
+}
+
+pub struct TenantStore {
+    pub traces: Mutex<TraceStore>,
+    pub audit: Mutex<AuditLog>,
+}
+```
+
+Every trace/audit endpoint requires `X-Tenant-Id`; there is deliberately
+no default-tenant fallback (see `TenantId`'s `FromRequestParts` impl),
+so isolation can't be silently bypassed by a client forgetting the
+header. `GET /api/v1/tenants` lists every tenant ID seen so far.
 
 ## REST API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Service health |
-| POST | `/api/v1/traces` | Ingest a span, policy-gated |
-| GET | `/api/v1/traces/count` | Total span count |
-| GET | `/api/v1/traces/{trace_id}` | Full trace by ID |
-| POST | `/api/v1/policies` | Load a governance policy (JSON) |
-| GET | `/api/v1/policies/count` | Total loaded policy count |
-| GET | `/api/v1/audit` | Paginated audit query |
-| GET | `/api/v1/audit/count` | Total audit record count |
-| GET | `/api/v1/audit/export.ndjson` / `.csv` | Streaming audit export |
+| GET | `/health` | Service health (no tenant) |
+| GET | `/api/v1/tenants` | List tenants seen so far (no tenant header needed) |
+| POST | `/api/v1/traces` | Ingest a span, policy-gated (tenant-scoped) |
+| GET | `/api/v1/traces/count` | Total span count (tenant-scoped) |
+| GET | `/api/v1/traces/{trace_id}` | Full trace by ID (tenant-scoped) |
+| POST | `/api/v1/policies` | Load a governance policy (JSON, global) |
+| GET | `/api/v1/policies/count` | Total loaded policy count (global) |
+| GET | `/api/v1/audit` | Paginated audit query (tenant-scoped) |
+| GET | `/api/v1/audit/count` | Total audit record count (tenant-scoped) |
+| GET | `/api/v1/audit/export.ndjson` / `.csv` | Streaming audit export (tenant-scoped) |
 
 Full request/response schemas: `docs/api_reference.md`.
 
