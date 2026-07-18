@@ -45,7 +45,7 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **Trace ingestion via API** | Available: `POST /api/v1/traces`, `GET /api/v1/traces/{trace_id}` |
 | **Policy loading & real-time gating via API** | Available: `POST /api/v1/policies`; every ingested span is evaluated against loaded policies, `block` rules reject the span with `403` |
 | **Audit query & export via API** | Available: `GET /api/v1/audit?limit=&offset=`, `GET /api/v1/audit/export.ndjson` / `.csv` |
-| **REST API** | `/health`, `/api/v1/tenants`, `/api/v1/traces`, `/api/v1/traces/count`, `/api/v1/traces/{trace_id}`, `/api/v1/audit`, `/api/v1/audit/count`, `/api/v1/audit/export.ndjson`, `/api/v1/audit/export.csv`, `/api/v1/policies`, `/api/v1/policies/count` |
+| **REST API** | `/health`, `/api/v1/tenants`, `/api/v1/traces`, `/api/v1/traces/count`, `/api/v1/traces/{trace_id}`, `/api/v1/audit`, `/api/v1/audit/count`, `/api/v1/audit/export.ndjson`, `/api/v1/audit/export.csv`, `/api/v1/compliance/report`, `/api/v1/policies`, `/api/v1/policies/count` |
 | **OTLP telemetry export to Azure Monitor** | Available: `AGC_TELEMETRY_ENDPOINT` wires a real OTLP/HTTP exporter into every ingested span; `AGC_TELEMETRY_MANAGED_IDENTITY` authenticates it with a Managed Identity token, no client secret |
 | **Audit export to Azure Monitor (DCR)** | Available: `agc-cli azure push-audit`, Managed-Identity-authenticated, no client secret |
 | **Microsoft Graph agent lookup** | Available: `agc-cli azure list-agents` (app registrations tagged `agc-agent`) |
@@ -54,6 +54,7 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **OPA/Rego export** | Available: `agc-cli policy to-rego` renders a structural Rego stub per policy — a hand-porting starting point, not a full semantic translation |
 | **RBAC for REST API** | Available: `AGC_JWT_SECRET` (HS256) or `AGC_AAD_TENANT_ID` (Entra ID RS256) gates writes to `Admin`, reads need `Viewer`; opt-in, off by default |
 | **Microsoft Sentinel export** | Available: `agc-cli sentinel export --format kql\|arm` generates 4 built-in analytics rule templates from AGC's audit table, as KQL files or a deployable ARM template — see [docs/sentinel.md](docs/sentinel.md) |
+| **Compliance report export** | Available: `GET /api/v1/compliance/report` (Markdown or `?format=json`), reporting against 4 of Microsoft's 6 Responsible AI principles from real tenant audit/trace data — see [docs/compliance.md](docs/compliance.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 

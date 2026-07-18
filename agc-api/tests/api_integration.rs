@@ -670,3 +670,62 @@ async fn rbac_is_disabled_by_default_and_every_request_works_unauthenticated() {
     .await;
     assert_eq!(response.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn compliance_report_reflects_real_policy_decisions_in_markdown_and_json() {
+    // Real end-to-end proof: loads a block-action policy, sends a span that
+    // trips it 3 times (crossing the "repeated blocks" threshold), then
+    // reads the report back in both formats and checks the actual numbers,
+    // not just that the endpoint returns 200.
+    let app_router = app().await;
+    let policy = json!({
+        "policy_id": "p1", "name": "Error gate", "agent_scope": [],
+        "rules": [{"rule_id": "r1", "description": "Block errors",
+            "condition": {"type": "span_level_at_least", "level": "error"},
+            "action": {"type": "block", "reason": "too severe"}}]
+    });
+    let load = post_json(app_router.clone(), "/api/v1/policies", policy).await;
+    assert_eq!(load.status(), StatusCode::CREATED);
+
+    for _ in 0..3 {
+        let response = post_tenant_json(
+            app_router.clone(),
+            "/api/v1/traces",
+            TENANT,
+            span_json("noisy-agent", "error", "risky_call", json!({})),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    let markdown_response = get_tenant(app_router.clone(), "/api/v1/compliance/report", TENANT).await;
+    assert_eq!(markdown_response.status(), StatusCode::OK);
+    assert_eq!(markdown_response.headers().get("content-type").unwrap(), "text/markdown");
+    let body = axum::body::to_bytes(markdown_response.into_body(), usize::MAX).await.unwrap();
+    let markdown = String::from_utf8(body.to_vec()).unwrap();
+    assert!(markdown.contains(TENANT));
+    assert!(markdown.contains("3 blocked"));
+    assert!(markdown.contains("`p1`: 3"));
+    assert!(markdown.contains("`noisy-agent`: 3 blocks"));
+    assert!(markdown.contains("## Out of scope: Fairness, Inclusiveness"));
+
+    let json_response = get_tenant(app_router.clone(), "/api/v1/compliance/report?format=json", TENANT).await;
+    assert_eq!(json_response.status(), StatusCode::OK);
+    let report = body_json(json_response).await;
+    assert_eq!(report["tenant_id"], TENANT);
+    assert_eq!(report["total_audit_records"], 3);
+    assert_eq!(report["outcomes"]["blocked"], 3);
+    assert_eq!(report["records_by_policy"], json!([["p1", 3]]));
+    assert_eq!(report["repeated_block_agents"], json!([["noisy-agent", 3]]));
+    assert_eq!(report["security"]["rbac_enabled"], false);
+}
+
+#[tokio::test]
+async fn compliance_report_requires_a_tenant_header() {
+    let response = app()
+        .await
+        .oneshot(Request::builder().uri("/api/v1/compliance/report").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
