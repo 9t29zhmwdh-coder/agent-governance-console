@@ -47,6 +47,9 @@ Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-
 | **OTLP-Telemetrie-Export zu Azure Monitor** | Verfügbar: `AGC_TELEMETRY_ENDPOINT` verdrahtet einen echten OTLP/HTTP-Exporter in jeden aufgenommenen Span |
 | **Audit-Export zu Azure Monitor (DCR)** | Verfügbar: `agc-cli azure push-audit`, Managed-Identity-authentifiziert, kein Client-Secret |
 | **Microsoft-Graph-Agent-Lookup** | Verfügbar: `agc-cli azure list-agents` (App-Registrierungen mit Tag `agc-agent`) |
+| **YAML-Policy-DSL** | Verfügbar: `GovernancePolicy::from_yaml` parst YAML oder JSON (ein Parser, YAML ist ein JSON-Superset); `agc-cli policy validate` für Offline-Checks |
+| **Policy-Hot-Reload** | Verfügbar: `AGC_POLICY_DIR` lädt und aktualisiert jede Policy-Datei in einem Verzeichnis live; ein fehlerhafter Edit behält den vorherigen Policy-Stand statt ihn zu löschen |
+| **OPA/Rego-Export** | Verfügbar: `agc-cli policy to-rego` rendert einen strukturellen Rego-Stub pro Policy — ein Ausgangspunkt zum manuellen Portieren, keine vollständige semantische Übersetzung |
 | **Microsoft Sentinel / REST-API-Auth / Multi-Tenant** | Geplant ab v1.0.0, siehe [ROADMAP.md](ROADMAP.md) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
@@ -112,6 +115,38 @@ curl http://127.0.0.1:8080/api/v1/audit/export.csv
 ```
 
 Vollständige Endpunkt- und Policy-Schema-Referenz: [docs/api_reference.md](docs/api_reference.md).
+
+### Die YAML-Policy-DSL und Hot-Reload ausprobieren
+
+```bash
+mkdir -p ./policies
+cat > ./policies/block-errors.yaml <<'EOF'
+policy_id: p1
+name: Error gate
+agent_scope: []
+rules:
+  - rule_id: r1
+    description: Block on error
+    condition:
+      type: span_level_at_least
+      level: error
+    action:
+      type: block
+      reason: too severe
+EOF
+
+# Policy-Datei offline validieren, ohne laufenden Server
+cargo run --bin agc-cli -- policy validate ./policies/block-errors.yaml
+
+# agc-api auf das Verzeichnis zeigen: lädt alle Policy-Dateien beim Start
+# und lädt automatisch neu, sobald sich eine Datei darin ändert
+AGC_POLICY_DIR=./policies cargo run --bin agc-api
+
+# Strukturellen Rego-Stub für eine Policy rendern (siehe docs/policy_dsl.md
+# für genau was eine echte Übersetzung vs. ein Ausgangspunkt zum manuellen
+# Portieren ist)
+cargo run --bin agc-cli -- policy to-rego ./policies/block-errors.yaml
+```
 
 ### Die Azure-Integration ausprobieren (optional)
 

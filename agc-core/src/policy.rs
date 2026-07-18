@@ -1,6 +1,15 @@
 use crate::trace::{TraceLevel, TraceSpan};
 use serde::{Deserialize, Serialize};
 
+/// Errors from parsing or loading policies.
+#[derive(Debug, thiserror::Error)]
+pub enum PolicyError {
+    #[error("invalid policy document: {0}")]
+    Parse(#[from] serde_norway::Error),
+    #[error("reading policy directory: {0}")]
+    Io(#[from] std::io::Error),
+}
+
 /// Governance policy for an agent or agent group.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GovernancePolicy {
@@ -10,6 +19,68 @@ pub struct GovernancePolicy {
     /// Agent IDs this policy applies to (empty = applies to all).
     pub agent_scope: Vec<String>,
     pub rules: Vec<PolicyRule>,
+}
+
+impl GovernancePolicy {
+    /// Parses a policy from a YAML document. Since YAML 1.2 is a JSON
+    /// superset, this also accepts plain JSON policy documents (the
+    /// `POST /api/v1/policies` format from v0.2.0) unchanged — one parser
+    /// for both, per `docs/policy_dsl.md`.
+    pub fn from_yaml(s: &str) -> Result<Self, PolicyError> {
+        Ok(serde_norway::from_str(s)?)
+    }
+
+    /// Serializes back to YAML, e.g. for round-tripping a policy loaded
+    /// via the JSON API into a file for hot-reload.
+    pub fn to_yaml(&self) -> Result<String, PolicyError> {
+        Ok(serde_norway::to_string(self)?)
+    }
+
+    /// Renders a best-effort, structurally valid Rego module for this
+    /// policy: real starting point for hand-porting to OPA, not a full
+    /// semantic translation of AGC's condition/action model (in
+    /// particular, `span_level_at_least` becomes an equality check on the
+    /// literal level string here, not a real severity-order comparison,
+    /// since Rego has no built-in enum ordering).
+    pub fn to_rego_stub(&self) -> String {
+        let package = format!("agc.policies.{}", rego_ident(&self.policy_id));
+        let mut out = format!(
+            "package {package}\n\n# Generated from AGC GovernancePolicy \"{}\" ({}).\n# Structural stub: hand-port the condition semantics below into real\n# Rego logic before using this in production OPA evaluation.\n\ndefault allow = true\n",
+            self.policy_id, self.name
+        );
+        for rule in &self.rules {
+            let rule_name = rego_ident(&rule.rule_id);
+            let cond_expr = rule.condition.to_rego_expr();
+            let (head, msg) = match &rule.action {
+                PolicyAction::Block { reason } => ("deny", reason.clone()),
+                PolicyAction::Warn { message } => ("warn", message.clone()),
+                PolicyAction::Alert { channel } => ("alert", channel.clone()),
+            };
+            out.push_str(&format!(
+                "\n# Rule {}: {}\n{head}[\"{rule_name}\"] {{\n    {cond_expr}\n    msg := {:?}\n}}\n",
+                rule.rule_id, rule.description, msg
+            ));
+        }
+        out
+    }
+}
+
+/// Converts a policy/rule ID into a valid Rego identifier: lowercase
+/// ASCII letters, digits and underscores only, never starting with a
+/// digit.
+fn rego_ident(s: &str) -> String {
+    let mut ident: String = s
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .collect();
+    let needs_prefix = match ident.chars().next() {
+        Some(c) => c.is_ascii_digit(),
+        None => true,
+    };
+    if needs_prefix {
+        ident.insert(0, '_');
+    }
+    ident
 }
 
 /// A single policy rule.
@@ -64,6 +135,40 @@ impl PolicyCondition {
             PolicyCondition::OperationMatches { pattern } => glob_match(pattern, &span.operation),
         }
     }
+
+    /// Best-effort Rego expression for this condition; see
+    /// [`GovernancePolicy::to_rego_stub`] for the caveats.
+    fn to_rego_expr(&self) -> String {
+        match self {
+            PolicyCondition::SpanLevelAtLeast { level } => {
+                format!("input.span.level == {:?}  # NOTE: equality only, not a real severity-order comparison", level.to_lowercase())
+            }
+            PolicyCondition::TokenBudgetExceeded { max_tokens } => {
+                format!("input.span.attributes.tokens > {max_tokens}")
+            }
+            PolicyCondition::OperationMatches { pattern } => {
+                if pattern.contains('*') {
+                    let regex = format!("^{}$", regex_escape_except_star(pattern).replace('*', ".*"));
+                    format!("regex.match({regex:?}, input.span.operation)")
+                } else {
+                    format!("input.span.operation == {pattern:?}")
+                }
+            }
+        }
+    }
+}
+
+/// Escapes Rego/regex metacharacters in a glob pattern, leaving `*` alone
+/// so the caller can turn it into `.*` afterward.
+fn regex_escape_except_star(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    for c in pattern.chars() {
+        if c != '*' && ".+?()[]{}|^$\\".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
 }
 
 fn parse_level(s: &str) -> Option<TraceLevel> {
@@ -119,6 +224,38 @@ impl PolicyEngine {
 
     pub fn load_policy(&mut self, policy: GovernancePolicy) {
         self.policies.push(policy);
+    }
+
+    /// Removes all loaded policies.
+    pub fn clear(&mut self) {
+        self.policies.clear();
+    }
+
+    /// Replaces all loaded policies with the `*.yaml`/`*.yml`/`*.json`
+    /// files found directly in `dir` (non-recursive). Each file is parsed
+    /// independently; the first parse error aborts the whole reload and
+    /// leaves the engine's previous policy set untouched, so a single
+    /// malformed file can't silently drop the rest. Returns the number of
+    /// policies loaded.
+    pub fn load_policies_from_dir(&mut self, dir: &std::path::Path) -> Result<usize, PolicyError> {
+        let mut loaded = Vec::new();
+        let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+        entries.sort_by_key(|e| e.path());
+        for entry in entries {
+            let path = entry.path();
+            let is_policy_file = matches!(
+                path.extension().and_then(|e| e.to_str()),
+                Some("yaml") | Some("yml") | Some("json")
+            );
+            if !path.is_file() || !is_policy_file {
+                continue;
+            }
+            let content = std::fs::read_to_string(&path)?;
+            loaded.push(GovernancePolicy::from_yaml(&content)?);
+        }
+        let count = loaded.len();
+        self.policies = loaded;
+        Ok(count)
     }
 
     pub fn policy_count(&self) -> usize {
@@ -256,5 +393,177 @@ mod tests {
 
         assert_eq!(engine.evaluate(&span("agent-1", TraceLevel::Info, "op", serde_json::json!({}))).len(), 1);
         assert_eq!(engine.evaluate(&span("agent-2", TraceLevel::Info, "op", serde_json::json!({}))).len(), 0);
+    }
+
+    #[test]
+    fn from_yaml_parses_the_docs_policy_dsl_example() {
+        let yaml = "
+policy_id: p-token-budget
+name: Token budget enforcement
+agent_scope: []
+rules:
+  - rule_id: r1
+    description: Alert when token budget exceeds 4096
+    condition:
+      type: token_budget_exceeded
+      max_tokens: 4096
+    action:
+      type: alert
+      channel: azure-monitor
+";
+        let policy = GovernancePolicy::from_yaml(yaml).unwrap();
+        assert_eq!(policy.policy_id, "p-token-budget");
+        assert_eq!(policy.rules.len(), 1);
+        assert!(matches!(
+            policy.rules[0].condition,
+            PolicyCondition::TokenBudgetExceeded { max_tokens: 4096 }
+        ));
+    }
+
+    #[test]
+    fn from_yaml_also_accepts_plain_json_since_yaml_is_a_superset() {
+        let json = serde_json::json!({
+            "policy_id": "p1", "name": "n", "agent_scope": [],
+            "rules": [{"rule_id": "r1", "description": "d",
+                "condition": {"type": "operation_matches", "pattern": "tool_*"},
+                "action": {"type": "warn", "message": "m"}}]
+        })
+        .to_string();
+        let policy = GovernancePolicy::from_yaml(&json).unwrap();
+        assert_eq!(policy.policy_id, "p1");
+    }
+
+    #[test]
+    fn from_yaml_rejects_malformed_documents() {
+        assert!(GovernancePolicy::from_yaml("not: [valid, policy").is_err());
+    }
+
+    #[test]
+    fn yaml_round_trips_through_to_yaml_and_from_yaml() {
+        let original = GovernancePolicy {
+            policy_id: "p1".into(),
+            name: "n".into(),
+            agent_scope: vec!["agent-1".into()],
+            rules: vec![PolicyRule {
+                rule_id: "r1".into(),
+                description: "d".into(),
+                condition: PolicyCondition::SpanLevelAtLeast { level: "error".into() },
+                action: PolicyAction::Block { reason: "x".into() },
+            }],
+        };
+        let yaml = original.to_yaml().unwrap();
+        let parsed = GovernancePolicy::from_yaml(&yaml).unwrap();
+        assert_eq!(parsed.policy_id, original.policy_id);
+        assert_eq!(parsed.rules.len(), 1);
+    }
+
+    #[test]
+    fn to_rego_stub_contains_package_and_one_rule_per_action_type() {
+        let policy = GovernancePolicy {
+            policy_id: "p-shell-block".into(),
+            name: "Block shell".into(),
+            agent_scope: vec![],
+            rules: vec![
+                PolicyRule {
+                    rule_id: "r1".into(),
+                    description: "block".into(),
+                    condition: PolicyCondition::OperationMatches { pattern: "tool_call:shell".into() },
+                    action: PolicyAction::Block { reason: "no shell".into() },
+                },
+                PolicyRule {
+                    rule_id: "r2".into(),
+                    description: "warn".into(),
+                    condition: PolicyCondition::TokenBudgetExceeded { max_tokens: 100 },
+                    action: PolicyAction::Warn { message: "budget".into() },
+                },
+                PolicyRule {
+                    rule_id: "r3".into(),
+                    description: "alert".into(),
+                    condition: PolicyCondition::SpanLevelAtLeast { level: "error".into() },
+                    action: PolicyAction::Alert { channel: "azure-monitor".into() },
+                },
+            ],
+        };
+        let rego = policy.to_rego_stub();
+        assert!(rego.starts_with("package agc.policies.p_shell_block"));
+        assert!(rego.contains("deny[\"r1\"]"));
+        assert!(rego.contains("warn[\"r2\"]"));
+        assert!(rego.contains("alert[\"r3\"]"));
+        assert!(rego.contains("input.span.attributes.tokens > 100"));
+    }
+
+    #[test]
+    fn rego_ident_sanitizes_hyphens_and_leading_digits() {
+        assert_eq!(rego_ident("p-shell-block"), "p_shell_block");
+        assert_eq!(rego_ident("1abc"), "_1abc");
+        assert_eq!(rego_ident(""), "_");
+    }
+
+    #[test]
+    fn load_policies_from_dir_loads_yaml_and_json_files_sorted_and_ignores_others() {
+        let dir = std::env::temp_dir().join(format!("agc-policy-dir-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        std::fs::write(
+            dir.join("b.yaml"),
+            "policy_id: p-b\nname: B\nagent_scope: []\nrules: []\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("a.json"),
+            r#"{"policy_id":"p-a","name":"A","agent_scope":[],"rules":[]}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.join("README.md"), "not a policy").unwrap();
+
+        let mut engine = PolicyEngine::new();
+        let count = engine.load_policies_from_dir(&dir).unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(engine.policy_count(), 2);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn load_policies_from_dir_replaces_rather_than_appends() {
+        let dir = std::env::temp_dir().join(format!("agc-policy-dir-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("a.yaml"),
+            "policy_id: p-a\nname: A\nagent_scope: []\nrules: []\n",
+        )
+        .unwrap();
+
+        let mut engine = PolicyEngine::new();
+        engine.load_policies_from_dir(&dir).unwrap();
+        assert_eq!(engine.policy_count(), 1);
+
+        // A second reload of the same (unchanged) directory must not double
+        // the count -- this is what makes hot-reload safe to call on every
+        // filesystem event instead of only once.
+        engine.load_policies_from_dir(&dir).unwrap();
+        assert_eq!(engine.policy_count(), 1);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn load_policies_from_dir_leaves_previous_policies_on_parse_error() {
+        let dir = std::env::temp_dir().join(format!("agc-policy-dir-test-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("bad.yaml"), "not: [valid, policy").unwrap();
+
+        let mut engine = PolicyEngine::new();
+        engine.load_policy(GovernancePolicy {
+            policy_id: "existing".into(),
+            name: "n".into(),
+            agent_scope: vec![],
+            rules: vec![],
+        });
+
+        assert!(engine.load_policies_from_dir(&dir).is_err());
+        assert_eq!(engine.policy_count(), 1, "a failed reload must not clear the previous good state");
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

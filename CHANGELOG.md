@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.5.0] - 2026-07-18
+
+Ships the full "v0.4.0: Policy DSL" roadmap milestone (released as
+0.5.0, a Minor bump, since the previous milestone had already advanced
+the version to 0.4.0).
+
+### Added
+- `GovernancePolicy::from_yaml`/`to_yaml` (`agc-core`, via the `serde_norway` crate): parses YAML policy documents; since YAML 1.2 is a JSON superset, the same parser also accepts the existing JSON format unchanged.
+- `PolicyEngine::load_policies_from_dir`: loads every `*.yaml`/`*.yml`/`*.json` file in a directory (non-recursive, sorted), replacing the full policy set atomically. A parse error in any file aborts that reload and leaves the previous policy set untouched, so one bad edit can't silently wipe a working configuration.
+- `AGC_POLICY_DIR` env var (`agc-api`): loads policies from a directory at startup and hot-reloads on every filesystem change, via a new `agc_api::spawn_policy_hot_reload` using the `notify` crate.
+- `GovernancePolicy::to_rego_stub`: renders a structural Open Policy Agent (Rego) module — one `deny`/`warn`/`alert` partial rule per policy rule. Explicitly a hand-porting starting point, not a full semantic translation of AGC's condition model (see `docs/policy_dsl.md` for exactly what's approximate, e.g. `span_level_at_least` becomes a string equality check, not a real severity-order comparison).
+- `agc-cli policy validate <file>`: parses a policy file and reports whether it's valid, without needing a running server.
+- `agc-cli policy to-rego <file>`: prints the Rego stub for a policy file.
+- 18 new tests (14 in `agc-core` covering YAML parsing/round-tripping/directory loading/Rego generation, 1 real end-to-end `agc-api` integration test that writes an actual file to a real directory and confirms the real filesystem watcher picks it up and the loaded policy actually gates a real request), all passing; clippy clean on all targets.
+
+### Changed
+- ROADMAP.md: "Token budget enforcement" checked off — it actually shipped in the v0.2.0 milestone (`TokenBudgetExceeded` reads `attributes.tokens`) but was never marked done there.
+
 ## [0.4.0] - 2026-07-17
 
 Ships the full "v0.3.0: Azure Integration" roadmap milestone (released as

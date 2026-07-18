@@ -45,12 +45,16 @@ regardless of the release number.
 
 **What's verified vs. not:** all four `agc-azure` integration points have real, passing tests against a local mock HTTP server (`wiremock`), including a regression test for the OTLP deadlock and one for a Managed-Identity timeout hang (IMDS is unreachable off Azure and was found to hang indefinitely without a client-side timeout — also fixed). `ManagedIdentityCredential`'s real IMDS endpoint and the extended `azure_setup.sh` have **not** been exercised against a real Azure subscription (none was available while building this): they are correct-by-construction against the documented contracts, not live-verified. See `docs/azure_integration.md`.
 
-## v0.4.0 : Policy DSL
+## v0.4.0 : Policy DSL ✅
 
-- [ ] YAML-based policy DSL (see `docs/policy_dsl.md`)
-- [ ] Hot-reload policies from file (watch via `notify`)
-- [ ] Token budget enforcement (count from span attributes)
-- [ ] OPA-compatible policy export (Rego stub)
+Shipped as v0.5.0 (not v0.4.0): the version was already at 0.4.0 from the
+previous milestone, so per this portfolio's own SemVer discipline the
+release became a Minor bump to the next available number.
+
+- [x] YAML-based policy DSL (see `docs/policy_dsl.md`): `GovernancePolicy::from_yaml` parses YAML (and, since YAML 1.2 is a JSON superset, plain JSON too — one parser for both). New `agc-cli policy validate <file>` command for offline validation.
+- [x] Hot-reload policies from file (watch via `notify`): `AGC_POLICY_DIR` loads every `*.yaml`/`*.yml`/`*.json` file in a directory at startup and reloads on every filesystem change; a parse error keeps the previous policy set instead of wiping it.
+- [x] Token budget enforcement (count from span attributes): already shipped in the v0.2.0 milestone (`TokenBudgetExceeded` reads `attributes.tokens`), just never checked off here.
+- [x] OPA-compatible policy export (Rego stub): `agc-cli policy to-rego <file>` renders a structural Rego module (one `deny`/`warn`/`alert` rule per policy rule) — explicitly a starting point for hand-porting, not a full semantic translation (see `docs/policy_dsl.md` for exactly what's approximate).
 
 ## v1.0.0 : Enterprise GA
 

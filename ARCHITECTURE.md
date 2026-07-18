@@ -43,11 +43,11 @@ AGC is a Rust workspace with four crates. The `agc-core` library contains all do
 - `TraceStore`: sorted in-memory store; query by trace ID, filter errors
 
 ### `policy`
-- `GovernancePolicy`: named policy with agent scope and rule list
+- `GovernancePolicy`: named policy with agent scope and rule list; `from_yaml`/`to_yaml` (YAML or JSON, one parser — YAML 1.2 is a JSON superset) and `to_rego_stub` (structural OPA export, see `docs/policy_dsl.md`)
 - `PolicyRule`: condition + action pair
 - `PolicyCondition`: `SpanLevelAtLeast`, `TokenBudgetExceeded`, `OperationMatches`
 - `PolicyAction`: `Warn`, `Block`, `Alert`
-- `PolicyEngine`: load policies, resolve applicable rules per agent/operation
+- `PolicyEngine`: load policies (single, or `load_policies_from_dir` for a whole directory — a failed parse leaves the previous policy set untouched), resolve applicable rules per agent/operation
 
 ### `audit`
 - `AuditRecord`: immutable record: agent, action, outcome, policy reference, details
@@ -98,13 +98,34 @@ Agent Runtime
 | POST | `/api/v1/traces` | Ingest a span, policy-gated |
 | GET | `/api/v1/traces/count` | Total span count |
 | GET | `/api/v1/traces/{trace_id}` | Full trace by ID |
-| POST | `/api/v1/policies` | Load a governance policy |
+| POST | `/api/v1/policies` | Load a governance policy (JSON) |
 | GET | `/api/v1/policies/count` | Total loaded policy count |
 | GET | `/api/v1/audit` | Paginated audit query |
 | GET | `/api/v1/audit/count` | Total audit record count |
 | GET | `/api/v1/audit/export.ndjson` / `.csv` | Streaming audit export |
 
 Full request/response schemas: `docs/api_reference.md`.
+
+## Policy Loading Paths
+
+Three independent ways to get a policy into a running `PolicyEngine`,
+all converging on the same `GovernancePolicy::from_yaml` parser (YAML or
+JSON, one parser):
+
+```
+POST /api/v1/policies (JSON)  ──┐
+AGC_POLICY_DIR file (YAML/JSON) ─┼──▶ PolicyEngine
+agc-cli policy validate (offline, doesn't touch a running engine) ──┘
+```
+
+`AGC_POLICY_DIR` additionally spawns a `notify`-based filesystem
+watcher (`agc_api::spawn_policy_hot_reload`): its callback runs on its
+own OS thread outside the Tokio runtime, so it only sends a signal over
+a channel to a dedicated async task that does the actual (async-locked)
+reload — the same "sync callback, async reload" split as the OTLP batch
+processor above avoids the same class of deadlock. A parse error during
+a directory reload aborts that reload and keeps the previous policy set,
+so a bad edit to one file can't silently wipe a working configuration.
 
 ## Azure Integration
 
@@ -124,4 +145,6 @@ See `docs/azure_integration.md` for OTLP, Microsoft Graph and Log Analytics DCR 
 | `reqwest` | HTTP client (`agc-azure`: IMDS, Monitor, Graph) |
 | `opentelemetry` / `opentelemetry_sdk` / `opentelemetry-otlp` | Real OTLP span export (`agc-azure`) |
 | `clap` | CLI argument parsing (`agc-cli`) |
+| `serde_norway` | YAML (de)serialization for the policy DSL (`agc-core`) |
+| `notify` | Filesystem watching for policy hot-reload (`agc-api`) |
 | `wiremock` (dev) | Mock HTTP server for `agc-azure`/`agc-api` Azure integration tests |

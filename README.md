@@ -48,6 +48,9 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **OTLP telemetry export to Azure Monitor** | Available: `AGC_TELEMETRY_ENDPOINT` wires a real OTLP/HTTP exporter into every ingested span |
 | **Audit export to Azure Monitor (DCR)** | Available: `agc-cli azure push-audit`, Managed-Identity-authenticated, no client secret |
 | **Microsoft Graph agent lookup** | Available: `agc-cli azure list-agents` (app registrations tagged `agc-agent`) |
+| **YAML policy DSL** | Available: `GovernancePolicy::from_yaml` parses YAML or JSON (one parser, YAML is a JSON superset); `agc-cli policy validate` for offline checks |
+| **Policy hot-reload** | Available: `AGC_POLICY_DIR` loads and live-reloads every policy file in a directory; a bad edit keeps the previous policy set instead of wiping it |
+| **OPA/Rego export** | Available: `agc-cli policy to-rego` renders a structural Rego stub per policy — a hand-porting starting point, not a full semantic translation |
 | **Microsoft Sentinel / REST API auth / multi-tenant** | Planned v1.0.0+, see [ROADMAP.md](ROADMAP.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
@@ -117,6 +120,37 @@ curl http://127.0.0.1:8080/api/v1/audit/export.csv
 ```
 
 Full endpoint and policy schema reference: [docs/api_reference.md](docs/api_reference.md).
+
+### Try the YAML policy DSL and hot-reload
+
+```bash
+mkdir -p ./policies
+cat > ./policies/block-errors.yaml <<'EOF'
+policy_id: p1
+name: Error gate
+agent_scope: []
+rules:
+  - rule_id: r1
+    description: Block on error
+    condition:
+      type: span_level_at_least
+      level: error
+    action:
+      type: block
+      reason: too severe
+EOF
+
+# Validate a policy file offline, without a running server
+cargo run --bin agc-cli -- policy validate ./policies/block-errors.yaml
+
+# Start agc-api pointed at the directory: it loads every policy file at
+# startup and reloads automatically whenever a file in it changes
+AGC_POLICY_DIR=./policies cargo run --bin agc-api
+
+# Render a structural Rego stub for a policy (see docs/policy_dsl.md for
+# exactly what's a real translation vs. a hand-porting starting point)
+cargo run --bin agc-cli -- policy to-rego ./policies/block-errors.yaml
+```
 
 ### Try the Azure integration (optional)
 

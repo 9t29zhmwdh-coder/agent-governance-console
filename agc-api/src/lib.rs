@@ -277,3 +277,40 @@ async fn export_csv(state: AppState) -> Response {
     let body = state.audit.lock().await.export_csv();
     (StatusCode::OK, [(header::CONTENT_TYPE, "text/csv")], body).into_response()
 }
+
+/// Watches `dir` for filesystem changes and reloads `policy` from it on
+/// every event (see `PolicyEngine::load_policies_from_dir`; a parse error
+/// logs a warning and keeps the previous policy set). `notify`'s watcher
+/// callback runs on its own OS thread, not inside the Tokio runtime, so
+/// it can't `.await` the policy lock directly -- it forwards a signal
+/// over a channel to a dedicated async task that does the actual reload.
+///
+/// The returned watcher must be kept alive (e.g. as a local in `main`)
+/// for the duration the reload should keep working; dropping it stops
+/// the watch.
+pub fn spawn_policy_hot_reload(
+    dir: std::path::PathBuf,
+    policy: Arc<Mutex<agc_core::PolicyEngine>>,
+) -> notify::Result<notify::RecommendedWatcher> {
+    use notify::Watcher;
+
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
+    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        if res.is_ok() {
+            let _ = tx.send(());
+        }
+    })?;
+    watcher.watch(&dir, notify::RecursiveMode::NonRecursive)?;
+
+    tokio::spawn(async move {
+        while rx.recv().await.is_some() {
+            let mut engine = policy.lock().await;
+            match engine.load_policies_from_dir(&dir) {
+                Ok(n) => tracing::info!("Policy hot-reload: loaded {n} policies from {}", dir.display()),
+                Err(e) => tracing::warn!("Policy hot-reload failed, keeping previous policies: {e}"),
+            }
+        }
+    });
+
+    Ok(watcher)
+}
