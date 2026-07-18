@@ -54,6 +54,9 @@ AGC is a Rust workspace with four crates. The `agc-core` library contains all do
 - `AuditOutcome`: Allowed / Blocked / Warned / Alerted
 - `AuditLog`: append-only log; NDJSON export (Azure Log Analytics), CSV export
 
+### `compliance`
+- `ComplianceReport::generate(tenant_id, &AuditLog, &TraceStore, &PolicyEngine, SecurityPosture)`: builds a report against 4 of Microsoft's 6 Responsible AI principles from a tenant's own real data; `to_markdown()` renders it. `SecurityPosture` (RBAC/Managed-Identity status) is supplied by `agc-api`, since `agc-core` has no knowledge of either. See [docs/compliance.md](docs/compliance.md)
+
 ### `sentinel`
 - `SentinelRule`: name, description, severity, KQL query; `to_kql()`, `to_arm_resource()` (`Microsoft.SecurityInsights/alertRules`, kind `Scheduled`)
 - `builtin_rules(table)`: 4 built-in governance-focused analytics rules, parameterized by the Log Analytics custom table name; exposed via `agc-cli sentinel export --format kql|arm`, see [docs/sentinel.md](docs/sentinel.md)
@@ -153,6 +156,7 @@ full contract and what's mock-tested vs. live-Entra-ID-tested.
 | GET | `/api/v1/audit` | Paginated audit query (tenant-scoped) |
 | GET | `/api/v1/audit/count` | Total audit record count (tenant-scoped) |
 | GET | `/api/v1/audit/export.ndjson` / `.csv` | Streaming audit export (tenant-scoped) |
+| GET | `/api/v1/compliance/report` | Responsible-AI-aligned compliance report, Markdown or `?format=json` (tenant-scoped) |
 
 Full request/response schemas: `docs/api_reference.md`.
 

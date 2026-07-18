@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.10.0] - 2026-07-18
+
+Ships the "Compliance report export aligned with Microsoft AI Responsible
+Use guidelines" item from ROADMAP.md's "v1.0.0: Enterprise GA" milestone
+(item 5 of 8).
+
+### Added
+- New `agc-core::compliance` module: `ComplianceReport::generate(tenant_id, &AuditLog, &TraceStore, &PolicyEngine, SecurityPosture)` builds a report against 4 of [Microsoft's 6 Responsible AI principles](https://learn.microsoft.com/azure/machine-learning/concept-responsible-ai) (Accountability, Transparency, Reliability and Safety, Privacy and Security) from a tenant's real audit/trace data; `to_markdown()` renders it. Fairness and Inclusiveness are explicitly reported as out of scope, since they require model-output-level evaluation this governance/audit layer never collects.
+- `GET /api/v1/compliance/report` (tenant-scoped, `Viewer` role): Markdown by default, `?format=json` for machine-readable output.
+- `agc-core::AuditLog::all_records` made public (was already implemented for `export_ndjson`/`export_csv`, just not exposed).
+- 8 new tests: 6 unit tests in `agc-core::compliance` (outcome counting, per-policy grouping, the repeated-block-agent threshold, span error-rate math, the empty-tenant case, and that the rendered Markdown covers every section including the out-of-scope disclosure), 2 integration tests in `agc-api` (a real block-action policy driven through 3 real requests, checked in both Markdown and JSON; the missing-tenant-header rejection).
+- New `docs/compliance.md`.
+
+### Known limitation
+- Not reviewed by a compliance or legal professional -- a factual summary of AGC's own recorded governance data, not a certification of regulatory compliance.
+
 ## [0.9.0] - 2026-07-18
 
 Ships the "Entra ID managed identity support for all Azure integrations

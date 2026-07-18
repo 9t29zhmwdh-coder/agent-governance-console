@@ -298,6 +298,18 @@ pub fn create_router(state: AppState) -> Router {
             }),
         )
         .route(
+            "/api/v1/compliance/report",
+            get({
+                let s = state.clone();
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap, Query(q): Query<ComplianceQuery>| async move {
+                    if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Viewer).await {
+                        return resp;
+                    }
+                    compliance_report(s, tenant_id, q).await
+                }
+            }),
+        )
+        .route(
             "/api/v1/policies/count",
             get({
                 let s = state.clone();
@@ -498,6 +510,35 @@ async fn export_csv(state: AppState, tenant_id: String) -> Response {
     };
     let body = store.audit.lock().await.export_csv();
     (StatusCode::OK, [(header::CONTENT_TYPE, "text/csv")], body).into_response()
+}
+
+#[derive(serde::Deserialize)]
+struct ComplianceQuery {
+    format: Option<String>,
+}
+
+/// `GET /api/v1/compliance/report`: a Responsible-AI-aligned compliance
+/// report over this tenant's own trace/audit data (see
+/// `agc_core::compliance` for exactly what's covered and what's
+/// explicitly out of scope). Markdown by default; `?format=json` for a
+/// machine-readable version of the same data.
+async fn compliance_report(state: AppState, tenant_id: String, q: ComplianceQuery) -> Response {
+    let store = match state.tenant_store(&tenant_id).await {
+        Ok(s) => s,
+        Err(e) => return tenant_store_error(&tenant_id, e),
+    };
+    let audit = store.audit.lock().await;
+    let trace = store.traces.lock().await;
+    let policy = state.policy.lock().await;
+    let security = agc_core::SecurityPosture {
+        rbac_enabled: !matches!(state.auth, AuthConfig::Disabled),
+        telemetry_managed_identity: state.otlp_authenticated,
+    };
+    let report = agc_core::ComplianceReport::generate(&tenant_id, &audit, &trace, &policy, security);
+    match q.format.as_deref() {
+        Some("json") => (StatusCode::OK, Json(report)).into_response(),
+        _ => (StatusCode::OK, [(header::CONTENT_TYPE, "text/markdown")], report.to_markdown()).into_response(),
+    }
 }
 
 /// Watches `dir` for filesystem changes and reloads `policy` from it on

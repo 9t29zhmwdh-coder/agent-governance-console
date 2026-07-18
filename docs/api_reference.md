@@ -160,6 +160,13 @@ Streams the `X-Tenant-Id` tenant's full audit log as CSV
 (`content-type: text/csv`), header row
 `id,timestamp,agent_id,action,outcome,policy_id`.
 
+### GET /api/v1/compliance/report
+
+Responsible-AI-aligned compliance report for the `X-Tenant-Id` tenant.
+Markdown by default (`content-type: text/markdown`); `?format=json` for
+the same data as JSON. See [docs/compliance.md](compliance.md) for what
+each section covers and what's explicitly out of scope.
+
 ### GET /api/v1/policies/count
 
 Returns total loaded policy count (global, no tenant header needed).

@@ -133,7 +133,9 @@ impl AuditLog {
         }
     }
 
-    fn all_records(&self) -> Vec<AuditRecord> {
+    /// Every record, oldest-first. Used by `export_ndjson`/`export_csv` and
+    /// by `compliance::ComplianceReport::generate`.
+    pub fn all_records(&self) -> Vec<AuditRecord> {
         self.query_records("", None)
     }
 
