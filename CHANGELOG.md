@@ -5,6 +5,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.1] - 2026-07-18
+
+### Security
+- **CVE-2026-25537 (GHSA-h395-gr6q-cpjc, medium)**: upgraded `jsonwebtoken` 9.3.1 -> 10.4.0. Older versions treated a claim that failed to parse (e.g. `exp`/`nbf` sent as a string instead of a number) identically to the claim being entirely absent -- silently skipping the check. `agc-api::auth` clears `required_spec_claims` to make `exp` optional-but-enforced-when-present (see the v0.7.0 entry above), which is exactly the configuration this CVE targets. Flagged by GitHub Dependabot on the newly-merged `main` (the RBAC PR predates Dependabot picking this advisory up). Fixed for real, not just version-bumped: added `malformed_exp_claim_is_rejected_not_silently_ignored`, a regression test that forges a token with `exp` as a string and confirms it's now rejected, matching the CVE's own proof-of-concept exactly.
+- Enabling `jsonwebtoken`'s newer major version requires explicit crypto backend selection (`rust_crypto` feature, plus `use_pem` for the existing RSA-PEM test helper) -- a breaking internal change with no public API impact.
+- `cargo audit` also flags `RUSTSEC-2023-0071` (Marvin Attack, RSA timing side-channel in the `rsa` crate, no fixed upgrade available) as newly reachable via `jsonwebtoken`'s `rust_crypto` feature. Documented as an accepted risk in `.cargo/audit.toml` with justification: the Marvin Attack targets RSA *private-key* operations (signing/decryption); `agc-api` only ever performs RSA *signature verification* (a public-key operation) for Entra ID (AAD) RS256 tokens, so this specific side-channel doesn't apply to how the crate is actually used here.
+
 ## [1.0.0] - 2026-07-18
 
 **Enterprise GA.** Ships the final item ("SLA: p99 ingest latency < 10ms

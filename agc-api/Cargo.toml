@@ -28,7 +28,7 @@ tracing      = { workspace = true }
 tracing-subscriber = { workspace = true }
 rusqlite     = { workspace = true }
 reqwest      = { workspace = true }
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10.3", default-features = false, features = ["rust_crypto", "use_pem"] }
 
 [dev-dependencies]
 tokio    = { version = "1", features = ["full"] }
