@@ -4,6 +4,7 @@
 //! and opt-in telemetry for agentic workflow observability.
 
 pub mod audit;
+pub mod bench;
 pub mod compliance;
 pub mod policy;
 pub mod sentinel;
@@ -11,6 +12,7 @@ pub mod telemetry;
 pub mod trace;
 
 pub use audit::{AuditLog, AuditOutcome, AuditRecord};
+pub use bench::LatencyReport;
 pub use compliance::{ComplianceReport, SecurityPosture};
 pub use policy::{GovernancePolicy, PolicyAction, PolicyCondition, PolicyEngine, PolicyRule};
 pub use sentinel::{builtin_rules as sentinel_builtin_rules, SentinelRule};

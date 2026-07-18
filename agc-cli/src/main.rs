@@ -28,6 +28,33 @@ enum Command {
         #[command(subcommand)]
         action: SentinelCommand,
     },
+    /// Load-test a running agc-api instance
+    Bench {
+        #[command(subcommand)]
+        action: BenchCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum BenchCommand {
+    /// Load-test POST /api/v1/traces and report ingest latency percentiles
+    /// against the ROADMAP.md SLA target (p99 < 10ms at 1K spans/s).
+    /// Sends `rate` requests per second, evenly spaced (one every
+    /// 1/rate seconds, not a synchronous per-second burst -- see
+    /// docs/performance.md for why that distinction matters), for
+    /// `duration_secs` seconds, against an already-running agc-api
+    /// instance -- run `cargo run -p agc-api` (or a deployed one) in
+    /// another terminal first.
+    Ingest {
+        #[arg(long, default_value = "http://127.0.0.1:8080")]
+        url: String,
+        #[arg(long, default_value = "agc-bench")]
+        tenant: String,
+        #[arg(long, default_value_t = 1000)]
+        rate: u32,
+        #[arg(long, default_value_t = 10)]
+        duration_secs: u64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -107,6 +134,7 @@ async fn main() {
         Some(Command::Azure { action }) => run_azure_command(action).await,
         Some(Command::Policy { action }) => run_policy_command(action),
         Some(Command::Sentinel { action }) => run_sentinel_command(action),
+        Some(Command::Bench { action }) => run_bench_command(action).await,
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");
@@ -129,6 +157,7 @@ fn print_info() {
     println!("Run `agc-cli azure --help` for Azure integration commands.");
     println!("Run `agc-cli policy --help` for policy DSL commands.");
     println!("Run `agc-cli sentinel --help` for Microsoft Sentinel export commands.");
+    println!("Run `agc-cli bench --help` for load-testing commands.");
 }
 
 fn sanitize_filename(name: &str) -> String {
@@ -167,6 +196,90 @@ fn run_sentinel_command(action: SentinelCommand) -> Result<(), BoxError> {
                 }
                 other => return Err(format!("unknown --format '{other}', expected 'kql' or 'arm'").into()),
             }
+            Ok(())
+        }
+    }
+}
+
+fn bench_span_json(tenant: &str) -> serde_json::Value {
+    serde_json::json!({
+        "span_id": uuid::Uuid::new_v4(),
+        "trace_id": uuid::Uuid::new_v4(),
+        "parent_span_id": null,
+        "agent_id": format!("{tenant}-bench-agent"),
+        "operation": "bench_call",
+        "level": "info",
+        "started_at": chrono::Utc::now().to_rfc3339(),
+        "ended_at": null,
+        "attributes": {},
+    })
+}
+
+async fn run_bench_command(action: BenchCommand) -> Result<(), BoxError> {
+    match action {
+        BenchCommand::Ingest { url, tenant, rate, duration_secs } => {
+            let client = reqwest::Client::new();
+            let traces_url = format!("{}/api/v1/traces", url.trim_end_matches('/'));
+            println!("Bench: POST {traces_url}, {rate} req/s for {duration_secs}s (tenant '{tenant}')");
+
+            let total_requests = rate as u64 * duration_secs;
+            let mut handles = Vec::with_capacity(total_requests as usize);
+
+            // Spread requests evenly across the whole run (one every
+            // 1/rate seconds) rather than firing `rate` requests in one
+            // synchronous burst per second. A synchronous burst was tried
+            // first and produced misleadingly high p99s (~30ms at 1000
+            // req/s): it makes ~1000 requests contend for the same
+            // per-tenant lock at the exact same instant, which a real
+            // steady arrival rate of 1000/s never does (see
+            // docs/performance.md for the full investigation).
+            let interval = std::time::Duration::from_secs_f64(1.0 / rate as f64);
+            let run_start = std::time::Instant::now();
+            for i in 0..total_requests {
+                let target = run_start + interval * i as u32;
+                let now = std::time::Instant::now();
+                if target > now {
+                    tokio::time::sleep(target - now).await;
+                }
+                let client = client.clone();
+                let traces_url = traces_url.clone();
+                let tenant = tenant.clone();
+                handles.push(tokio::spawn(async move {
+                    let body = bench_span_json(&tenant);
+                    let start = std::time::Instant::now();
+                    let result = client.post(&traces_url).header("X-Tenant-Id", &tenant).json(&body).send().await;
+                    let ok = result.map(|r| r.status().is_success()).unwrap_or(false);
+                    (start.elapsed(), ok)
+                }));
+                if (i + 1) % rate as u64 == 0 {
+                    println!("  second {}/{duration_secs}: {rate} requests sent", (i + 1) / rate as u64);
+                }
+            }
+
+            let mut latencies_us: Vec<u64> = Vec::with_capacity(total_requests as usize);
+            let mut errors: u64 = 0;
+            for handle in handles {
+                match handle.await {
+                    Ok((elapsed, true)) => latencies_us.push(elapsed.as_micros() as u64),
+                    _ => errors += 1,
+                }
+            }
+
+            latencies_us.sort_unstable();
+            let report = agc_core::LatencyReport::from_sorted_micros(&latencies_us, errors);
+            println!();
+            println!("Results: {} successful, {} error(s)", report.count, report.errors);
+            println!("  p50: {:.2}ms", report.p50_us as f64 / 1000.0);
+            println!("  p95: {:.2}ms", report.p95_us as f64 / 1000.0);
+            println!("  p99: {:.2}ms", report.p99_ms());
+            println!("  max: {:.2}ms", report.max_us as f64 / 1000.0);
+
+            const SLA_P99_MS: f64 = 10.0;
+            if report.p99_ms() >= SLA_P99_MS {
+                eprintln!("SLA NOT MET: p99 {:.2}ms >= {SLA_P99_MS}ms target", report.p99_ms());
+                std::process::exit(1);
+            }
+            println!("SLA MET: p99 {:.2}ms < {SLA_P99_MS}ms target", report.p99_ms());
             Ok(())
         }
     }

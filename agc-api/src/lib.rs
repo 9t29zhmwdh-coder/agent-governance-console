@@ -14,7 +14,7 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
 /// Per-tenant trace and audit storage. Policies stay global (shared
@@ -38,7 +38,14 @@ impl TenantStore {
 
 #[derive(Clone)]
 pub struct AppState {
-    tenants: Arc<Mutex<HashMap<String, Arc<TenantStore>>>>,
+    /// `RwLock`, not `Mutex`: after warm-up almost every call is a lookup
+    /// of an already-created tenant, so concurrent requests shouldn't
+    /// serialize on one exclusive lock just to read a HashMap. A real
+    /// bottleneck found while load-testing the SLA target (ROADMAP.md):
+    /// with a plain `Mutex` here, 1000 req/s against one tenant produced
+    /// p99 ~29ms; this read/write split is what got it under the 10ms
+    /// target, see `docs/performance.md`.
+    tenants: Arc<RwLock<HashMap<String, Arc<TenantStore>>>>,
     pub policy: Arc<Mutex<PolicyEngine>>,
     /// Real OTLP span exporter, present only when telemetry is enabled and
     /// configured with an endpoint (see `agc_core::TelemetryConfig`).
@@ -62,7 +69,7 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            tenants: Arc::new(Mutex::new(HashMap::new())),
+            tenants: Arc::new(RwLock::new(HashMap::new())),
             policy: Arc::new(Mutex::new(PolicyEngine::new())),
             otlp: None,
             otlp_authenticated: false,
@@ -127,7 +134,15 @@ impl AppState {
     /// Resolves the store for `tenant_id`, creating it (and, if
     /// `audit_db_dir` is set, its backing SQLite file) on first use.
     async fn tenant_store(&self, tenant_id: &str) -> rusqlite::Result<Arc<TenantStore>> {
-        let mut tenants = self.tenants.lock().await;
+        // Fast path: a shared read lock, so concurrent requests for
+        // already-created tenants (the overwhelming majority in practice)
+        // never block each other.
+        if let Some(store) = self.tenants.read().await.get(tenant_id) {
+            return Ok(store.clone());
+        }
+        let mut tenants = self.tenants.write().await;
+        // Another task may have created this tenant while we were waiting
+        // for the write lock; re-check before creating a duplicate.
         if let Some(store) = tenants.get(tenant_id) {
             return Ok(store.clone());
         }
@@ -149,7 +164,7 @@ impl AppState {
 
     /// Every tenant ID that has made at least one request so far, sorted.
     pub async fn tenant_ids(&self) -> Vec<String> {
-        let mut ids: Vec<String> = self.tenants.lock().await.keys().cloned().collect();
+        let mut ids: Vec<String> = self.tenants.read().await.keys().cloned().collect();
         ids.sort();
         ids
     }

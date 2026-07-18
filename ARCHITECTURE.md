@@ -54,6 +54,9 @@ AGC is a Rust workspace with four crates. The `agc-core` library contains all do
 - `AuditOutcome`: Allowed / Blocked / Warned / Alerted
 - `AuditLog`: append-only log; NDJSON export (Azure Log Analytics), CSV export
 
+### `bench`
+- `percentile(sorted_ascending, pct)`, `LatencyReport`: nearest-rank percentile math backing `agc-cli bench ingest`'s p50/p95/p99 reporting, see [docs/performance.md](docs/performance.md)
+
 ### `compliance`
 - `ComplianceReport::generate(tenant_id, &AuditLog, &TraceStore, &PolicyEngine, SecurityPosture)`: builds a report against 4 of Microsoft's 6 Responsible AI principles from a tenant's own real data; `to_markdown()` renders it. `SecurityPosture` (RBAC/Managed-Identity status) is supplied by `agc-api`, since `agc-core` has no knowledge of either. See [docs/compliance.md](docs/compliance.md)
 
@@ -113,7 +116,7 @@ behind another's:
 
 ```rust
 pub struct AppState {
-    tenants: Arc<Mutex<HashMap<String, Arc<TenantStore>>>>, // per-tenant
+    tenants: Arc<RwLock<HashMap<String, Arc<TenantStore>>>>, // per-tenant, RwLock so a warm lookup never blocks on another tenant's request (see docs/performance.md)
     pub policy: Arc<Mutex<PolicyEngine>>,                    // global
     pub otlp: Option<Arc<agc_azure::OtlpExporter>>,          // global
     pub otlp_authenticated: bool,                            // true only if a Managed Identity token was actually attached
@@ -191,6 +194,10 @@ See `docs/azure_integration.md` for OTLP, Microsoft Graph and Log Analytics DCR 
 `Dockerfile` (repo root): multi-stage build, `rust:1.90-bookworm` compiling `agc-api`'s release binary, shipped in a minimal `debian:bookworm-slim` runtime as a non-root user. `AGC_BIND` (new; defaults to `127.0.0.1:8080` outside a container, overridden to `0.0.0.0:8080` in the image) controls the bind address -- required for the port to actually be reachable from outside the container/pod, a real bug found while building the Helm chart (see `docs/helm.md`).
 
 `helm/agent-governance-console`: Deployment, Service, optional Ingress/HorizontalPodAutoscaler/PersistentVolumeClaim (for `AGC_AUDIT_DB_DIR`)/ConfigMap (for `AGC_POLICY_DIR`), RBAC env wiring for both HMAC and Entra ID modes, and Azure Workload Identity annotations for AKS. See `docs/helm.md` for the full field reference and how it was verified (real `helm lint`/`helm template`/`kubectl apply --dry-run=server`/`helm install` against a local k3s cluster, not just written-and-hoped).
+
+## Performance
+
+`agc-cli bench ingest`: a real HTTP load generator (evenly-spaced real requests, not a synchronous burst) verifying ROADMAP.md's SLA target (p99 ingest latency < 10ms at 1K spans/s). See `docs/performance.md` for the full methodology, two real bugs found while building it (a `Mutex`-vs-`RwLock` server bottleneck and a burst-vs-steady-rate benchmark bug), and the actual measured numbers.
 
 ## External Dependencies
 

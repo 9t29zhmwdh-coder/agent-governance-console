@@ -29,7 +29,7 @@ Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.micros
 
 ## Übersicht
 
-Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-api`, `agc-cli`, `agc-azure`) zur Steuerung, Beobachtung und Überprüfung von AI-Agent-Workflows. Die Core-Bibliothek modelliert Trace-Spans, Governance-Policies und Audit-Records mit getesteter API; die REST-API unterstützt volle Trace-Ingestion mit Echtzeit-Policy-Gate, Policy-Laden und paginierte/streambare Audit-Abfragen; und die Azure-Integration (OTLP-Telemetrie-Export, Managed-Identity-authentifizierter Audit-Push zu Azure Monitor, Microsoft-Graph-Agent-Lookup) ist real umgesetzt, nicht nur geplant (siehe [ROADMAP.md](ROADMAP.md)).
+Agent Governance Console (AGC) ist ein Rust-Workspace (`agc-core`, `agc-api`, `agc-cli`, `agc-azure`) in Version 1.0.0 zur Steuerung, Beobachtung und Überprüfung von AI-Agent-Workflows. Die Core-Bibliothek modelliert Trace-Spans, Governance-Policies und Audit-Records mit getesteter API; die REST-API unterstützt volle Trace-Ingestion mit Echtzeit-Policy-Gate, Policy-Laden und paginierte/streambare Audit-Abfragen; und die Azure-Integration (OTLP-Telemetrie-Export, Managed-Identity-authentifizierter Audit-Push zu Azure Monitor, Microsoft-Graph-Agent-Lookup) ist real umgesetzt, nicht nur geplant (siehe [ROADMAP.md](ROADMAP.md)).
 
 **In der Praxis:** Du kannst eine Governance-Policy laden, Agent-Trace-Spans dagegen posten und zutreffende Regeln in Echtzeit warnen, blockieren oder (protokolliert, noch nicht extern ausgeliefert) alarmieren lassen, wobei jede Entscheidung in einem abfragbaren, exportierbaren Audit-Log landet, das sich zu Azure Monitor pushen lässt. Trace- und Audit-Daten sind pro Tenant isoliert (`X-Tenant-Id`, je eigener Store); Policies bleiben geteilte Governance über alle Tenants hinweg. Optionales RBAC (`Authorization: Bearer <JWT>`, HS256 oder Entra ID) schützt Schreibzugriffe mit einer `Admin`-Rolle.
 
@@ -56,6 +56,7 @@ Agent Governance Console (AGC) ist ein früher Rust-Workspace (`agc-core`, `agc-
 | **Compliance-Report-Export** | Verfügbar: `GET /api/v1/compliance/report` (Markdown oder `?format=json`), berichtet gegen 4 der 6 Microsoft-Responsible-AI-Prinzipien anhand echter Tenant-Audit-/Trace-Daten — siehe [docs/compliance.md](docs/compliance.md) |
 | **Dashboard-UI** | Verfügbar: `GET /dashboard`, eine eigenständige statische Seite (kein Build-Schritt) mit Health, Tenants, Policies, Tenant-Traces, paginierter Audit-Tabelle und Compliance-Report — siehe [docs/dashboard.md](docs/dashboard.md) |
 | **Kubernetes-Deployment (Helm-Chart)** | Verfügbar: `helm/agent-governance-console` plus ein Root-`Dockerfile` — Deployment, Service, optionales Ingress/HPA/PVC/Policy-ConfigMap, beide RBAC-Modi, Azure Workload Identity — siehe [docs/helm.md](docs/helm.md) |
+| **Ingest-SLA (p99 < 10ms bei 1K Spans/s)** | Verifiziert: `agc-cli bench ingest` — gemessener p99 deutlich unter 1ms bei Zielrate, hält bei doppelter Rate und im realistischen Worst Case — siehe [docs/performance.md](docs/performance.md) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
 

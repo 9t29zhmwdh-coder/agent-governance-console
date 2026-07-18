@@ -5,6 +5,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.0] - 2026-07-18
+
+**Enterprise GA.** Ships the final item ("SLA: p99 ingest latency < 10ms
+for 1K spans/s", item 8 of 8) from ROADMAP.md's "v1.0.0: Enterprise GA"
+milestone, completing it. All 8 items are now shipped: multi-tenant mode
+(v0.6.0), RBAC (v0.7.0), Microsoft Sentinel export (v0.8.0), Entra ID
+Managed Identity for all Azure integrations (v0.9.0), a Responsible-AI
+compliance report (v0.10.0), a dashboard UI (v0.11.0), a Helm chart
+(v0.12.0), and this SLA verification.
+
+### Added
+- `agc-cli bench ingest`: a real HTTP load generator against `POST /api/v1/traces`, evenly-spaced (not a synchronous burst) requests at a configurable rate/duration, reporting p50/p95/p99/max ingest latency and exiting non-zero if p99 doesn't clear the 10ms SLA target.
+- New `agc-core::bench` module: `percentile`, `LatencyReport` -- pure, unit-tested percentile math (6 tests) backing the CLI tool above.
+- New `docs/performance.md`: full SLA methodology, findings, and measured numbers.
+
+### Fixed
+- A real server-side bottleneck found while verifying the SLA: `AppState.tenants` was a `tokio::sync::Mutex<HashMap<...>>`, so **every** trace/audit request -- even for an already-existing tenant -- serialized behind one global exclusive lock just to do a HashMap read. Switched to `RwLock`: warm lookups (the overwhelming majority in practice) now take a shared read lock and never block each other; only a brand-new tenant's very first request takes the exclusive write lock (with a double-check to avoid a duplicate-creation race).
+- A benchmark methodology bug in the first draft of `bench ingest` itself: firing all `rate` requests for a second in one synchronous burst measured artificial same-instant lock contention (p99 ~29ms at 1000 req/s), not steady-state latency a real 1000/s arrival rate actually produces. Fixed by spacing requests evenly; p99 dropped to well under 1ms. Both findings, and why the first "SLA not met" reading was real-but-misleading rather than wrong, are documented in full in `docs/performance.md`.
+
+### Verified
+- p99 well under 1ms at 1000 req/s (roughly 20x margin under the 10ms target), sustained over 20 seconds, holding at 2000 req/s (2x target), and still only ~1.4ms in the realistic worst case: every span matching a real policy rule, every resulting audit record actually persisted to a real SQLite file on disk (not in-memory) -- verified by inspecting the file, not just trusting the run's exit code.
+
 ## [0.12.0] - 2026-07-18
 
 Ships the "Helm chart for Kubernetes deployment" item from ROADMAP.md's
