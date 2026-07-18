@@ -273,6 +273,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn malformed_exp_claim_is_rejected_not_silently_ignored() {
+        // Regression test for CVE-2026-25537 (GHSA-h395-gr6q-cpjc): older
+        // jsonwebtoken versions treated a claim that failed to parse (e.g.
+        // "exp" sent as a string instead of a number) identically to the
+        // claim being absent, silently skipping the exp check entirely --
+        // exactly the "validate_exp = true, exp not in
+        // required_spec_claims" configuration this crate uses (see the
+        // comment on `required_spec_claims.clear()` above). A forged token
+        // with a string "exp" must be rejected, not accepted as if it had
+        // no expiry at all.
+        let auth = AuthConfig::hmac("s3cret");
+        let claims = serde_json::json!({"roles": ["admin"], "exp": "99999999999"});
+        let token = jsonwebtoken::encode(
+            &Header::new(Algorithm::HS256),
+            &claims,
+            &EncodingKey::from_secret(b"s3cret"),
+        )
+        .unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(axum::http::header::AUTHORIZATION, format!("Bearer {token}").parse().unwrap());
+        let err = authorize(&auth, &headers, Role::Viewer).await.unwrap_err();
+        assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
     async fn unrecognized_role_string_fails_safe_to_viewer() {
         let auth = AuthConfig::hmac("s3cret");
         let token = hmac_token("s3cret", &["superuser"]);

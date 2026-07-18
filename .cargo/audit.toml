@@ -1,0 +1,16 @@
+# cargo-audit config. See CHANGELOG.md's [1.0.1] entry for the full
+# investigation behind this ignore.
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 (Marvin Attack, RSA timing side-channel): no fixed
+    # upgrade exists for the `rsa` crate. Pulled in transitively via
+    # jsonwebtoken's `rust_crypto` feature (agc-api's RS256/Entra ID RBAC
+    # path). The Marvin Attack targets timing differences in PKCS#1v1.5
+    # *private-key* operations (signing/decryption); agc-api only ever
+    # performs RSA *signature verification* (a public-key operation) --
+    # it never signs or decrypts with an RSA private key -- so this
+    # specific side-channel does not apply to how the crate is actually
+    # used here. Revisit if agc-api ever gains an RSA private-key
+    # operation, or when a fixed `rsa` release is available.
+    "RUSTSEC-2023-0071",
+]
