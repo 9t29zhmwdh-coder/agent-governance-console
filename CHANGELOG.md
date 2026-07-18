@@ -5,6 +5,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.8.0] - 2026-07-18
+
+Ships the "Microsoft Sentinel analytics rule export" item from
+ROADMAP.md's "v1.0.0: Enterprise GA" milestone (item 3 of 8).
+
+### Added
+- `agc-core::sentinel` module: `SentinelRule` (name, description, severity, KQL query), `builtin_rules(table)` returning 4 built-in governance-focused analytics rules (repeated policy blocks by one agent, a new agent's first action being a block, a portfolio-wide warn/alert volume spike, an agent triggering many distinct policies), `to_kql()` (raw query text) and `to_arm_resource()` (a `Microsoft.SecurityInsights/alertRules`, kind `Scheduled`, ARM resource snippet).
+- `agc-cli sentinel export --table <name> --format kql|arm --output-dir <dir>`: `kql` writes one `.kql` file per rule (ready to paste into Sentinel's "Analytics rules → Create → Set rule logic" editor); `arm` writes a single deployable ARM template containing all 4 rules as resources (`az deployment group create`). Table name defaults to `AGCAudit_CL` (what `scripts/azure_setup.sh` provisions) and is fully parameterized for a renamed table.
+- 5 new unit tests in `agc-core::sentinel` (rule count/shape, custom table name substitution, a schema-column validator that tokenizes every query and rejects any column-like identifier not in `azure_setup.sh`'s actual custom table schema, ARM resource shape, raw KQL passthrough), plus a real end-to-end CLI smoke test (both formats actually written to disk and inspected: real KQL text, valid parseable ARM JSON with all 4 resources well-formed, the `--format` error path, and the custom-table-name path).
+
+### Known limitation
+- Correct against the exact column names `azure_setup.sh`'s custom table declares, but not verified against a live Sentinel workspace (none was available while building this) — same disclosed-limitation pattern as the rest of this portfolio's Azure integrations.
+
 ## [0.7.0] - 2026-07-18
 
 Ships the "Role-based access control for REST API (JWT / AAD tokens)"

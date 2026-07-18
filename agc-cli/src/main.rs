@@ -23,6 +23,29 @@ enum Command {
         #[command(subcommand)]
         action: PolicyCommand,
     },
+    /// Export Microsoft Sentinel analytics rule templates for the AGC audit table
+    Sentinel {
+        #[command(subcommand)]
+        action: SentinelCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum SentinelCommand {
+    /// Write the built-in Sentinel analytics rule templates to disk
+    Export {
+        /// The Log Analytics custom table name (scripts/azure_setup.sh
+        /// creates AGCAudit_CL by default)
+        #[arg(long, default_value = "AGCAudit_CL")]
+        table: String,
+        /// "kql" writes one .kql file per rule; "arm" writes one ARM
+        /// template deploying all of them via
+        /// `az deployment group create`
+        #[arg(long, default_value = "kql")]
+        format: String,
+        #[arg(long, default_value = ".")]
+        output_dir: std::path::PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -83,6 +106,7 @@ async fn main() {
         }
         Some(Command::Azure { action }) => run_azure_command(action).await,
         Some(Command::Policy { action }) => run_policy_command(action),
+        Some(Command::Sentinel { action }) => run_sentinel_command(action),
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");
@@ -104,6 +128,48 @@ fn print_info() {
     println!("\nAll subsystems initialised. Run `agc-api` to start the REST API.");
     println!("Run `agc-cli azure --help` for Azure integration commands.");
     println!("Run `agc-cli policy --help` for policy DSL commands.");
+    println!("Run `agc-cli sentinel --help` for Microsoft Sentinel export commands.");
+}
+
+fn sanitize_filename(name: &str) -> String {
+    name.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn run_sentinel_command(action: SentinelCommand) -> Result<(), BoxError> {
+    match action {
+        SentinelCommand::Export { table, format, output_dir } => {
+            std::fs::create_dir_all(&output_dir)?;
+            let rules = agc_core::sentinel_builtin_rules(&table);
+
+            match format.as_str() {
+                "kql" => {
+                    for rule in &rules {
+                        let path = output_dir.join(format!("{}.kql", sanitize_filename(rule.name)));
+                        std::fs::write(&path, format!("// {}\n// {}\n// Severity: {}\n\n{}\n", rule.name, rule.description, rule.severity, rule.to_kql()))?;
+                        println!("Wrote {}", path.display());
+                    }
+                }
+                "arm" => {
+                    let template = serde_json::json!({
+                        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                        "contentVersion": "1.0.0.0",
+                        "resources": rules.iter().map(|r| r.to_arm_resource()).collect::<Vec<_>>(),
+                    });
+                    let path = output_dir.join("agc-sentinel-rules.json");
+                    std::fs::write(&path, serde_json::to_string_pretty(&template)?)?;
+                    println!("Wrote {} ({} rule(s))", path.display(), rules.len());
+                }
+                other => return Err(format!("unknown --format '{other}', expected 'kql' or 'arm'").into()),
+            }
+            Ok(())
+        }
+    }
 }
 
 fn run_policy_command(action: PolicyCommand) -> Result<(), BoxError> {

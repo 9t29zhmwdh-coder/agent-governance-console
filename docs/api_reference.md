@@ -212,7 +212,7 @@ Response (`201`): `{ "policy_id": "p1", "loaded": true }`
 | GET | `/api/v1/policies` | List loaded policies |
 | * | (RBAC-gated versions of the above) | JWT/AAD auth for the REST API itself, see ROADMAP.md |
 
-See [ROADMAP.md](../ROADMAP.md) for the full v1.0.0 Enterprise GA plan (RBAC, Sentinel export, Dashboard UI, Helm chart).
+See [ROADMAP.md](../ROADMAP.md) for the full v1.0.0 Enterprise GA plan (RBAC, Sentinel export, Dashboard UI, Helm chart). Sentinel export itself (`agc-cli sentinel export`, not a REST endpoint) is documented in [docs/sentinel.md](sentinel.md).
 
 ## Rust Types
 
