@@ -5,6 +5,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.11.0] - 2026-07-18
+
+Ships the "Dashboard UI" item from ROADMAP.md's "v1.0.0: Enterprise GA"
+milestone (item 6 of 8), scoped as a static HTML/CSS/JS page rather than
+the Tauri/WASM frontend the item's original wording named -- see the
+"Scoping note" in `docs/dashboard.md` and `ROADMAP.md` for why.
+
+### Added
+- `GET /dashboard`: a single self-contained static page (`agc-api/static/dashboard.html`, embedded via `include_str!`, zero new dependencies) covering health, tenant list, policy count, per-tenant span count, a paginated audit table, and the compliance report -- all client-side `fetch()` calls against the existing REST endpoints, with an optional bearer-token field for RBAC-enabled deployments.
+- New `docs/dashboard.md`.
+- 1 new integration test in `agc-api` confirming the page is real HTML referencing every endpoint it needs; the page's pure rendering functions are also executed for real under Node against realistic API-shaped data (see Known limitation).
+
+### Known limitation
+- No headless browser was available in the environment this was built in, so actual browser rendering (layout, CSS, click-through interaction) is unverified -- only the served HTML's structure and the JS rendering functions' output (run under Node, not a browser) were checked for real.
+
 ## [0.10.0] - 2026-07-18
 
 Ships the "Compliance report export aligned with Microsoft AI Responsible

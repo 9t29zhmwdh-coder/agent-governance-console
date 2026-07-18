@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Governance Console</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --card: #ffffff; --text: #1a1a1a; --muted: #666;
+    --border: #ddd; --accent: #3F8E7E; --danger: #c0392b; --warn: #b8860b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181c; --card: #1f2228; --text: #eaeaea; --muted: #9aa0a6; --border: #34383f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  header h1 { font-size: 1.1rem; margin: 0; margin-right: auto; }
+  input { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+  button { background: var(--accent); color: white; border: none; border-radius: 6px; padding: 0.45rem 0.9rem; font-size: 0.85rem; cursor: pointer; }
+  button:hover { opacity: 0.9; }
+  main { padding: 1.5rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; max-width: 1400px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; overflow-x: auto; }
+  .card h2 { font-size: 0.95rem; margin: 0 0 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+  .card.wide { grid-column: 1 / -1; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+  th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+  .badge.allowed { background: #2ecc7133; color: #1e8449; }
+  .badge.blocked { background: #e74c3c33; color: var(--danger); }
+  .badge.warned { background: #f1c40f33; color: var(--warn); }
+  .badge.alerted { background: #e67e2233; color: #c0522b; }
+  .stat { font-size: 1.8rem; font-weight: 700; }
+  .stat-label { color: var(--muted); font-size: 0.8rem; }
+  pre { white-space: pre-wrap; font-size: 0.78rem; line-height: 1.4; }
+  .error { color: var(--danger); font-size: 0.85rem; }
+  .pager { display: flex; gap: 0.5rem; margin-top: 0.75rem; align-items: center; font-size: 0.8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent Governance Console</h1>
+  <input id="tenant" placeholder="X-Tenant-Id" />
+  <input id="token" placeholder="Bearer token (optional)" />
+  <button id="refresh">Refresh</button>
+</header>
+<main>
+  <div class="card">
+    <h2>Health</h2>
+    <div id="health">Loading...</div>
+  </div>
+  <div class="card">
+    <h2>Policies</h2>
+    <div class="stat" id="policyCount">-</div>
+    <div class="stat-label">policies loaded (global)</div>
+  </div>
+  <div class="card">
+    <h2>Traces</h2>
+    <div class="stat" id="spanCount">-</div>
+    <div class="stat-label">spans ingested (this tenant)</div>
+  </div>
+  <div class="card wide">
+    <h2>Tenants Seen</h2>
+    <div id="tenants">Loading...</div>
+  </div>
+  <div class="card wide">
+    <h2>Audit Log</h2>
+    <div id="auditTable">Enter a tenant ID and click Refresh.</div>
+    <div class="pager" id="pager"></div>
+  </div>
+  <div class="card wide">
+    <h2>Compliance Report</h2>
+    <pre id="compliance">Enter a tenant ID and click Refresh.</pre>
+  </div>
+</main>
+<script>
+  const AUDIT_PAGE_SIZE = 20;
+  let auditOffset = 0;
+
+  function tenantId() { return document.getElementById('tenant').value.trim(); }
+  function authHeaders() {
+    const h = { 'X-Tenant-Id': tenantId() };
+    const token = document.getElementById('token').value.trim();
+    if (token) h['Authorization'] = 'Bearer ' + token;
+    return h;
+  }
+
+  async function getJson(path, opts) {
+    const res = await fetch(path, opts);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status} ${res.statusText}: ${body}`);
+    }
+    return res.json();
+  }
+
+  function outcomeBadge(outcome) {
+    return `<span class="badge ${outcome}">${outcome}</span>`;
+  }
+
+  function renderAuditTable(records) {
+    if (records.length === 0) return '<p>No audit records yet.</p>';
+    const rows = records.map(r => `<tr>
+      <td>${r.timestamp}</td><td>${r.agent_id}</td><td>${r.action}</td>
+      <td>${outcomeBadge(r.outcome)}</td><td>${r.policy_id || ''}</td>
+    </tr>`).join('');
+    return `<table><thead><tr><th>Timestamp</th><th>Agent</th><th>Action</th><th>Outcome</th><th>Policy</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderTenants(tenants) {
+    if (tenants.length === 0) return '<p>No tenants have made a request yet.</p>';
+    return '<p>' + tenants.map(t => `<code>${t}</code>`).join(', ') + '</p>';
+  }
+
+  async function refreshHealth() {
+    try {
+      const h = await getJson('/health');
+      document.getElementById('health').innerHTML = `<span class="badge allowed">${h.status}</span> v${h.version}`;
+    } catch (e) {
+      document.getElementById('health').innerHTML = `<span class="error">${e.message}</span>`;
+    }
+  }
+
+  async function refreshTenants() {
+    try {
+      const t = await getJson('/api/v1/tenants');
+      document.getElementById('tenants').innerHTML = renderTenants(t.tenants);
+    } catch (e) {
+      document.getElementById('tenants').innerHTML = `<span class="error">${e.message}</span>`;
+    }
+  }
+
+  async function refreshPolicyCount() {
+    try {
+      const p = await getJson('/api/v1/policies/count', { headers: authHeaders() });
+      document.getElementById('policyCount').textContent = p.policy_count;
+    } catch (e) {
+      document.getElementById('policyCount').innerHTML = `<span class="error">error</span>`;
+    }
+  }
+
+  async function refreshTenantScoped() {
+    const tid = tenantId();
+    if (!tid) {
+      document.getElementById('spanCount').textContent = '-';
+      document.getElementById('auditTable').innerHTML = '<p>Enter a tenant ID and click Refresh.</p>';
+      document.getElementById('compliance').textContent = 'Enter a tenant ID and click Refresh.';
+      document.getElementById('pager').innerHTML = '';
+      return;
+    }
+    try {
+      const c = await getJson('/api/v1/traces/count', { headers: authHeaders() });
+      document.getElementById('spanCount').textContent = c.span_count;
+    } catch (e) {
+      document.getElementById('spanCount').innerHTML = `<span class="error">error</span>`;
+    }
+    await refreshAudit();
+    try {
+      const res = await fetch('/api/v1/compliance/report', { headers: authHeaders() });
+      document.getElementById('compliance').textContent = res.ok ? await res.text() : `${res.status} ${res.statusText}`;
+    } catch (e) {
+      document.getElementById('compliance').textContent = e.message;
+    }
+  }
+
+  async function refreshAudit() {
+    try {
+      const a = await getJson(`/api/v1/audit?limit=${AUDIT_PAGE_SIZE}&offset=${auditOffset}`, { headers: authHeaders() });
+      document.getElementById('auditTable').innerHTML = renderAuditTable(a.records);
+      const shown = auditOffset + a.records.length;
+      document.getElementById('pager').innerHTML =
+        `<span>${shown} of ${a.total}</span>
+         <button id="prevPage" ${auditOffset === 0 ? 'disabled' : ''}>Prev</button>
+         <button id="nextPage" ${shown >= a.total ? 'disabled' : ''}>Next</button>`;
+      const prev = document.getElementById('prevPage');
+      const next = document.getElementById('nextPage');
+      if (prev) prev.onclick = () => { auditOffset = Math.max(0, auditOffset - AUDIT_PAGE_SIZE); refreshAudit(); };
+      if (next) next.onclick = () => { auditOffset += AUDIT_PAGE_SIZE; refreshAudit(); };
+    } catch (e) {
+      document.getElementById('auditTable').innerHTML = `<span class="error">${e.message}</span>`;
+    }
+  }
+
+  async function refreshAll() {
+    auditOffset = 0;
+    await Promise.all([refreshHealth(), refreshTenants(), refreshPolicyCount(), refreshTenantScoped()]);
+  }
+
+  document.getElementById('refresh').addEventListener('click', refreshAll);
+  document.getElementById('tenant').value = localStorage.getItem('agc_tenant') || '';
+  document.getElementById('token').value = localStorage.getItem('agc_token') || '';
+  document.getElementById('tenant').addEventListener('change', e => localStorage.setItem('agc_tenant', e.target.value));
+  document.getElementById('token').addEventListener('change', e => localStorage.setItem('agc_token', e.target.value));
+
+  refreshAll();
+</script>
+</body>
+</html>
