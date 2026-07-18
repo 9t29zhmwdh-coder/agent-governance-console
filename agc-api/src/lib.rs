@@ -16,6 +16,9 @@ pub struct AppState {
     pub traces: Arc<Mutex<TraceStore>>,
     pub audit: Arc<Mutex<AuditLog>>,
     pub policy: Arc<Mutex<PolicyEngine>>,
+    /// Real OTLP span exporter, present only when telemetry is enabled and
+    /// configured with an endpoint (see `agc_core::TelemetryConfig`).
+    pub otlp: Option<Arc<agc_azure::OtlpExporter>>,
 }
 
 impl AppState {
@@ -24,6 +27,7 @@ impl AppState {
             traces: Arc::new(Mutex::new(TraceStore::new())),
             audit: Arc::new(Mutex::new(AuditLog::new())),
             policy: Arc::new(Mutex::new(PolicyEngine::new())),
+            otlp: None,
         }
     }
 
@@ -35,16 +39,29 @@ impl AppState {
             traces: Arc::new(Mutex::new(TraceStore::new())),
             audit: Arc::new(Mutex::new(AuditLog::open(path)?)),
             policy: Arc::new(Mutex::new(PolicyEngine::new())),
+            otlp: None,
         })
     }
 
     /// Builds from a `ConsoleConfig`: file-backed audit log if
-    /// `audit_db_path` is set, in-memory otherwise.
+    /// `audit_db_path` is set, in-memory otherwise. If telemetry is
+    /// enabled with an endpoint, also constructs a real OTLP exporter; a
+    /// misconfigured endpoint logs a warning and leaves telemetry off
+    /// rather than failing the whole server startup over it.
     pub fn from_config(cfg: &ConsoleConfig) -> rusqlite::Result<Self> {
-        match &cfg.audit_db_path {
-            Some(path) => Self::with_audit_db(path),
-            None => Ok(Self::new()),
+        let mut state = match &cfg.audit_db_path {
+            Some(path) => Self::with_audit_db(path)?,
+            None => Self::new(),
+        };
+        if cfg.telemetry.enabled {
+            if let Some(endpoint) = &cfg.telemetry.endpoint {
+                match agc_azure::OtlpExporter::new(endpoint, &cfg.telemetry.service_name) {
+                    Ok(exporter) => state.otlp = Some(Arc::new(exporter)),
+                    Err(e) => tracing::warn!("failed to initialize OTLP exporter, telemetry stays disabled: {e}"),
+                }
+            }
         }
+        Ok(state)
     }
 }
 
@@ -188,6 +205,11 @@ async fn ingest_trace(state: AppState, span: TraceSpan) -> Response {
             })),
         )
             .into_response();
+    }
+
+    if let Some(otlp) = &state.otlp {
+        let duration_ms = span.duration_ms().map(|d| d.max(0) as u64).unwrap_or(0);
+        otlp.record_span(&span.operation, duration_ms);
     }
 
     let span_id = span.span_id;

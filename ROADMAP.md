@@ -28,13 +28,22 @@ are complete regardless of the release number.
 - [x] Policy evaluation on every ingested span (real-time gate): `SpanLevelAtLeast`, `TokenBudgetExceeded` (reads the `tokens` span attribute), `OperationMatches` (single-wildcard glob) all have real evaluation logic now, not stubs; a matched `Block` rule rejects the span with `403` and it is never stored
 - [x] SQLite persistence for audit log (`rusqlite`): `AuditLog::open(path)` for a real file, `AuditLog::new()` still in-memory by default; wired into the running server via `AGC_AUDIT_DB_PATH` / `AppState::with_audit_db`/`from_config`
 
-## v0.3.0 : Azure Integration
+## v0.3.0 : Azure Integration ✅
 
-- [ ] OTLP exporter to Azure Monitor (via `opentelemetry-otlp`)
-- [ ] Azure Log Analytics DCR ingest endpoint for audit NDJSON
-- [ ] Microsoft Graph integration (read agent app registrations)
-- [ ] AAD managed identity authentication (no secrets in config)
-- [ ] `scripts/azure_setup.sh` (create DCR, workspace, app registration)
+Shipped as v0.4.0 (not v0.3.0): the version number was already at 0.3.0
+before this milestone landed (the previous "v0.2.0: Full REST API"
+milestone shipped as 0.3.0 for the same reason), so per this portfolio's
+own SemVer discipline the release became a Minor bump to the next
+available number instead of a collision. All items below are complete
+regardless of the release number.
+
+- [x] OTLP exporter to Azure Monitor (via `opentelemetry-otlp`): real OTLP/HTTP export, wired into `agc-api`'s trace ingestion via `AGC_TELEMETRY_ENDPOINT`/`AGC_TELEMETRY_SERVICE_NAME`. Uses the batch span processor (its own background thread) rather than the simple/synchronous one — the synchronous version deadlocked when called from inside axum's already-running Tokio runtime, a real bug found and fixed during development.
+- [x] Azure Log Analytics DCR ingest endpoint for audit NDJSON: `agc-cli azure push-audit` reads a local NDJSON export and POSTs it as a JSON array to a DCR via the Logs Ingestion API.
+- [x] Microsoft Graph integration (read agent app registrations): `agc-cli azure list-agents` queries app registrations tagged `agc-agent`.
+- [x] AAD managed identity authentication (no secrets in config): `ManagedIdentityCredential` (IMDS-based) backs both commands above; never a client secret in AGC's own config.
+- [x] `scripts/azure_setup.sh` (create DCR, workspace, app registration): extended to provision the Log Analytics workspace, Application Insights, the custom audit table, a Data Collection Endpoint, a Data Collection Rule, and a demo `agc-agent`-tagged app registration.
+
+**What's verified vs. not:** all four `agc-azure` integration points have real, passing tests against a local mock HTTP server (`wiremock`), including a regression test for the OTLP deadlock and one for a Managed-Identity timeout hang (IMDS is unreachable off Azure and was found to hang indefinitely without a client-side timeout — also fixed). `ManagedIdentityCredential`'s real IMDS endpoint and the extended `azure_setup.sh` have **not** been exercised against a real Azure subscription (none was available while building this): they are correct-by-construction against the documented contracts, not live-verified. See `docs/azure_integration.md`.
 
 ## v0.4.0 : Policy DSL
 
@@ -58,7 +67,7 @@ are complete regardless of the release number.
 
 Assessed 2026-07-11 as a Dual-Licensing candidate (Community MIT + Commercial/Enterprise tier): governance/audit tooling for regulated environments is a plausible enterprise sales category, and AGC already targets that audience explicitly (see the README's "enterprise AI governance teams" framing). Not ready yet; blocked on:
 
-- [ ] No authentication on the REST API at all (v0.1 has none, AAD JWT is a v0.3.0/v1.0.0 item above): an Enterprise tier needs a real auth story before it can gate anything
+- [ ] No authentication on the REST API at all (AAD JWT/RBAC for the REST API itself is a v1.0.0 item above; v0.3.0 only added outbound Managed Identity auth for AGC calling Azure Monitor/Graph, not inbound gating of AGC's own endpoints): an Enterprise tier needs a real auth story before it can gate anything
 - [ ] No multi-tenancy (v1.0.0 item above): a Commercial tier's core value is usually per-tenant isolation and RBAC
 - [x] ~~No persistence yet~~ SQLite persistence for the audit log shipped in v0.2.0 (see above); trace store and policy engine are still in-memory only, so there is still no durable data across the whole system to license access to yet
 

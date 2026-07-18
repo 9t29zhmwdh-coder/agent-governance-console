@@ -10,7 +10,7 @@
 
 **Governance, tracing, policy enforcement and observability for agentic workflows.**
 
-A Rust workspace laying the groundwork for tracing, policy enforcement and audit logging of AI agent activity, with Azure Monitor and Microsoft Sentinel integration on the roadmap.
+A Rust workspace for tracing, policy enforcement and audit logging of AI agent activity, with real Azure Monitor telemetry/audit export and Microsoft Graph integration; Microsoft Sentinel is still on the roadmap.
 
 Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com/en-us/azure/machine-learning/concept-responsible-ai) and designed for enterprise AI governance teams operating in regulated Microsoft cloud environments.
 
@@ -28,9 +28,9 @@ Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com
 
 ## Overview
 
-Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `agc-api`, `agc-cli`) for governing, observing and auditing AI agent workflows. The core library models trace spans, governance policies and audit records with a tested API; the REST API now supports full trace ingestion with a real-time policy gate, policy loading, and paginated/streaming audit queries (see [ROADMAP.md](ROADMAP.md)). Azure Monitor, Microsoft Sentinel and Entra ID integration are planned for v0.3.0+ and not implemented yet.
+Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `agc-api`, `agc-cli`, `agc-azure`) for governing, observing and auditing AI agent workflows. The core library models trace spans, governance policies and audit records with a tested API; the REST API supports full trace ingestion with a real-time policy gate, policy loading, and paginated/streaming audit queries; and Azure integration (OTLP telemetry export, Managed-Identity-authenticated audit push to Azure Monitor, Microsoft Graph agent lookup) is real and wired in, not just planned (see [ROADMAP.md](ROADMAP.md)).
 
-**In practice:** you can load a governance policy, POST agent trace spans against it, and have matching rules warn, block, or (recorded, not yet externally delivered) alert in real time, with every decision written to a queryable, exportable audit log. It is a real, working policy gate for a single process; multi-tenant isolation, RBAC and Azure-native delivery are still ahead on the roadmap.
+**In practice:** you can load a governance policy, POST agent trace spans against it, and have matching rules warn, block, or (recorded, not yet externally delivered) alert in real time, with every decision written to a queryable, exportable audit log that can be pushed to Azure Monitor. It is a real, working policy gate for a single process; multi-tenant isolation and RBAC for the REST API itself are still ahead on the roadmap.
 
 ---
 
@@ -45,7 +45,10 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **Policy loading & real-time gating via API** | Available: `POST /api/v1/policies`; every ingested span is evaluated against loaded policies, `block` rules reject the span with `403` |
 | **Audit query & export via API** | Available: `GET /api/v1/audit?limit=&offset=`, `GET /api/v1/audit/export.ndjson` / `.csv` |
 | **REST API** | `/health`, `/api/v1/traces`, `/api/v1/traces/count`, `/api/v1/traces/{trace_id}`, `/api/v1/audit`, `/api/v1/audit/count`, `/api/v1/audit/export.ndjson`, `/api/v1/audit/export.csv`, `/api/v1/policies`, `/api/v1/policies/count` |
-| **Azure Monitor / Sentinel / Entra ID** | Planned v0.3.0+, see [ROADMAP.md](ROADMAP.md) |
+| **OTLP telemetry export to Azure Monitor** | Available: `AGC_TELEMETRY_ENDPOINT` wires a real OTLP/HTTP exporter into every ingested span |
+| **Audit export to Azure Monitor (DCR)** | Available: `agc-cli azure push-audit`, Managed-Identity-authenticated, no client secret |
+| **Microsoft Graph agent lookup** | Available: `agc-cli azure list-agents` (app registrations tagged `agc-agent`) |
+| **Microsoft Sentinel / REST API auth / multi-tenant** | Planned v1.0.0+, see [ROADMAP.md](ROADMAP.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 
@@ -55,7 +58,7 @@ Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_referen
 
 - Rust 1.78+
 - Docker (optional, for containerised deployment)
-- Azure subscription (optional, for Monitor / Sentinel integration)
+- Azure subscription (optional, for OTLP telemetry export, audit push to Azure Monitor, and Microsoft Graph agent lookup — see [docs/azure_integration.md](docs/azure_integration.md))
 
 ---
 
@@ -114,6 +117,27 @@ curl http://127.0.0.1:8080/api/v1/audit/export.csv
 ```
 
 Full endpoint and policy schema reference: [docs/api_reference.md](docs/api_reference.md).
+
+### Try the Azure integration (optional)
+
+```bash
+# Provision the Azure resources once (needs an Azure subscription and az CLI)
+AZURE_RG=my-rg AZURE_LOCATION=westeurope ./scripts/azure_setup.sh
+
+# Export spans over OTLP to Azure Monitor as they're ingested
+AGC_TELEMETRY_ENDPOINT="https://<region>.otelcollector.azure.com/v1/traces" cargo run --bin agc-api
+
+# List Entra ID app registrations tagged 'agc-agent' (Managed Identity + Microsoft Graph)
+cargo run --bin agc-cli -- azure list-agents
+
+# Push a local audit export to an Azure Monitor DCR (Managed Identity, no client secret)
+./scripts/export_audit.sh ndjson
+cargo run --bin agc-cli -- azure push-audit --file audit-*.ndjson \
+  --dce-endpoint "https://<name>.<region>-1.ingest.monitor.azure.com" \
+  --dcr-id "dcr-..." --stream "Custom-AGCAudit_CL"
+```
+
+Full walkthrough, including what's mock-tested vs. verified against real Azure: [docs/azure_integration.md](docs/azure_integration.md).
 
 ---
 

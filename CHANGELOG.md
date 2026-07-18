@@ -5,6 +5,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.4.0] - 2026-07-17
+
+Ships the full "v0.3.0: Azure Integration" roadmap milestone (released as
+0.4.0, a Minor bump, since the previous milestone had already advanced
+the version to 0.3.0). New `agc-azure` crate; no breaking changes to
+`agc-core`/`agc-api`'s existing public API beyond `AppState` gaining an
+`otlp` field.
+
+### Added
+- `agc-azure` crate: `ManagedIdentityCredential` (AAD tokens via IMDS, system- or user-assigned), `MonitorIngestClient` (push audit records to an Azure Monitor DCR via the Logs Ingestion API), `GraphClient` (list Entra ID app registrations tagged `agc-agent`), `OtlpExporter` (real OTLP/HTTP span export).
+- `agc-api`: `AGC_TELEMETRY_ENDPOINT`/`AGC_TELEMETRY_SERVICE_NAME` env vars wire a real `OtlpExporter` into `AppState`; every successfully ingested trace span is exported. A misconfigured endpoint logs a warning and leaves telemetry disabled rather than failing startup.
+- `agc-cli azure list-agents`: lists `agc-agent`-tagged app registrations via Managed Identity + Microsoft Graph.
+- `agc-cli azure push-audit`: reads a local NDJSON audit export and pushes it to an Azure Monitor DCR via Managed Identity.
+- `scripts/azure_setup.sh` extended to provision the Data Collection Endpoint, Data Collection Rule, custom `AGCAudit_CL` table, and a demo `agc-agent`-tagged app registration (previously only created the Log Analytics workspace and Application Insights).
+- 23 new tests (12 in `agc-azure`, 1 new integration test in `agc-api`), all against real local mock HTTP servers (`wiremock`), not just construction-only unit tests.
+
+### Fixed
+- A real deadlock: the OTLP exporter originally used a synchronous span processor that ran its HTTP export inline on the calling thread, hanging forever when called from inside axum's already-running Tokio runtime (i.e. any real request handler). Switched to the batch processor, which runs exports on its own dedicated thread.
+- A real hang: `ManagedIdentityCredential` had no HTTP client timeout, so a request to an unreachable/black-holed endpoint (exactly what IMDS's `169.254.169.254` looks like off Azure) could hang indefinitely instead of failing fast. Added a 2-second timeout; `GraphClient`/`MonitorIngestClient` got a 30-second timeout for the same reason.
+
+### Known limitations
+- `ManagedIdentityCredential`'s real IMDS endpoint and the extended `scripts/azure_setup.sh` have not been verified against a live Azure subscription (none was available while building this) — both are correct-by-construction against the documented contracts, tested only via mock HTTP servers. See `docs/azure_integration.md`.
+- REST API inbound authentication (JWT/AAD-gating AGC's own endpoints) is unrelated to this release and remains a v1.0.0 item; this release only added outbound Managed Identity auth for AGC calling Azure Monitor/Graph.
+
 ## [0.3.0] - 2026-07-17
 
 Ships the full "v0.2.0: Full REST API" roadmap milestone (released as
