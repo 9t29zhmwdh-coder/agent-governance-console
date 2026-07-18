@@ -1,5 +1,5 @@
 use agc_azure::{GraphClient, ManagedIdentityCredential, MonitorIngestClient};
-use agc_core::{AuditLog, AuditRecord, ConsoleConfig, PolicyEngine, TraceStore};
+use agc_core::{AuditLog, AuditRecord, ConsoleConfig, GovernancePolicy, PolicyEngine, TraceStore};
 use clap::{Parser, Subcommand};
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
@@ -17,6 +17,25 @@ enum Command {
     Azure {
         #[command(subcommand)]
         action: AzureCommand,
+    },
+    /// Policy DSL commands (YAML/JSON validation, Rego export)
+    Policy {
+        #[command(subcommand)]
+        action: PolicyCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum PolicyCommand {
+    /// Parse a policy file (YAML or JSON) and report whether it's valid
+    Validate {
+        /// Path to a policy file
+        file: std::path::PathBuf,
+    },
+    /// Parse a policy file and print a best-effort Rego stub for it
+    ToRego {
+        /// Path to a policy file
+        file: std::path::PathBuf,
     },
 }
 
@@ -57,14 +76,17 @@ async fn main() {
         .with_env_filter(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()))
         .init();
 
-    match Cli::parse().command {
-        None => print_info(),
-        Some(Command::Azure { action }) => {
-            if let Err(e) = run_azure_command(action).await {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
-            }
+    let result = match Cli::parse().command {
+        None => {
+            print_info();
+            Ok(())
         }
+        Some(Command::Azure { action }) => run_azure_command(action).await,
+        Some(Command::Policy { action }) => run_policy_command(action),
+    };
+    if let Err(e) = result {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
     }
 }
 
@@ -81,6 +103,34 @@ fn print_info() {
 
     println!("\nAll subsystems initialised. Run `agc-api` to start the REST API.");
     println!("Run `agc-cli azure --help` for Azure integration commands.");
+    println!("Run `agc-cli policy --help` for policy DSL commands.");
+}
+
+fn run_policy_command(action: PolicyCommand) -> Result<(), BoxError> {
+    match action {
+        PolicyCommand::Validate { file } => {
+            let content = std::fs::read_to_string(&file)?;
+            let policy = GovernancePolicy::from_yaml(&content)?;
+            println!(
+                "OK: {} ({}), {} rule(s), scope: {}",
+                policy.policy_id,
+                policy.name,
+                policy.rules.len(),
+                if policy.agent_scope.is_empty() {
+                    "all agents".to_string()
+                } else {
+                    policy.agent_scope.join(", ")
+                }
+            );
+            Ok(())
+        }
+        PolicyCommand::ToRego { file } => {
+            let content = std::fs::read_to_string(&file)?;
+            let policy = GovernancePolicy::from_yaml(&content)?;
+            print!("{}", policy.to_rego_stub());
+            Ok(())
+        }
+    }
 }
 
 /// Builds a Managed Identity credential, scoped to a user-assigned

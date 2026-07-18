@@ -3,7 +3,7 @@ members = ["agc-core", "agc-api", "agc-cli", "agc-azure"]
 resolver = "2"
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 license = "MIT"
 authors = ["Rafael Yilmaz"]
@@ -24,3 +24,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rusqlite     = { version = "0.31", features = ["bundled"] }
 reqwest      = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 clap         = { version = "4", features = ["derive"] }
+serde_norway = "0.9"
+notify       = "8"

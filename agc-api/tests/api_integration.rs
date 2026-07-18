@@ -366,6 +366,58 @@ async fn ingest_trace_exports_via_otlp_when_telemetry_is_configured() {
 }
 
 #[tokio::test]
+async fn policy_hot_reload_picks_up_a_new_file_and_enforces_it() {
+    // Real end-to-end proof, not a unit test of load_policies_from_dir in
+    // isolation: writes an actual YAML file to a real directory, waits for
+    // the real filesystem watcher to notice, and confirms the policy it
+    // loaded actually gates a real POST /api/v1/traces request.
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let dir = std::env::temp_dir().join(format!("agc-hot-reload-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let state = AppState::new();
+        let _watcher = agc_api::spawn_policy_hot_reload(dir.clone(), state.policy.clone()).unwrap();
+        let app_router = create_router(state);
+
+        std::fs::write(
+            dir.join("block-errors.yaml"),
+            "policy_id: p1\nname: Error gate\nagent_scope: []\nrules:\n  - rule_id: r1\n    description: Block on error\n    condition:\n      type: span_level_at_least\n      level: error\n    action:\n      type: block\n      reason: too severe\n",
+        )
+        .unwrap();
+
+        // Poll for the watcher's background task to have reloaded.
+        let mut loaded = false;
+        for _ in 0..40 {
+            let response = app_router
+                .clone()
+                .oneshot(Request::builder().uri("/api/v1/policies/count").body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            let json = body_json(response).await;
+            if json["policy_count"] == 1 {
+                loaded = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        assert!(loaded, "hot-reloaded policy never showed up in /api/v1/policies/count");
+
+        // The hot-reloaded policy must actually gate ingestion, not just be counted.
+        let response = post_json(
+            app_router,
+            "/api/v1/traces",
+            span_json("agent-1", "error", "risky_call", json!({})),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    })
+    .await
+    .expect("policy hot-reload did not complete within 10s");
+}
+
+#[tokio::test]
 async fn app_state_is_isolated_between_instances() {
     let app1 = create_router(AppState::new());
     let app2 = create_router(AppState::new());
