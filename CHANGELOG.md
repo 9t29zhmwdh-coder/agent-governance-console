@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.12.0] - 2026-07-18
+
+Ships the "Helm chart for Kubernetes deployment" item from ROADMAP.md's
+"v1.0.0: Enterprise GA" milestone (item 7 of 8).
+
+### Added
+- Root `Dockerfile`: multi-stage build (`rust:1.90-bookworm` -> `debian:bookworm-slim`, non-root user), plus `.dockerignore`.
+- `helm/agent-governance-console`: Deployment, Service, and optional Ingress, HorizontalPodAutoscaler, PersistentVolumeClaim (audit log), ConfigMap (governance policies), RBAC env wiring for both HMAC and Entra ID modes, and Azure Workload Identity annotations for AKS. Both probes hit `GET /health`.
+- New `AGC_BIND` env var (`agc-api`): overrides the REST API's bind address (defaults to `127.0.0.1:8080`, same as before).
+- New `docs/helm.md`.
+
+### Fixed
+- A real bug found while building the Docker image: `rust:1.82-bookworm`'s Cargo couldn't resolve a dependency requiring a newer Cargo edition feature -- fixed by bumping the build stage to `rust:1.90-bookworm`.
+- A real bug found while running the built container: the server's default bind address (`127.0.0.1`) is unreachable through Docker's port mapping or a Kubernetes Service/probe. Fixed with the new `AGC_BIND` env var, set to `0.0.0.0:8080` by default inside the container image.
+
+### Verification
+- `helm lint`, `helm template` with every conditional path exercised at once, and `kubectl apply --dry-run=server` against a real k3s API server all passed. A genuine `helm install` of the Docker-built image into a local k3s cluster reached `1/1 Ready` (both probes passing for real) and served real traffic through the Kubernetes Service. Colima, Docker, Helm, and kubectl were installed specifically to perform this verification (none were present in the environment beforehand); see `docs/helm.md` for exactly what was and wasn't covered.
+
 ## [0.11.0] - 2026-07-18
 
 Ships the "Dashboard UI" item from ROADMAP.md's "v1.0.0: Enterprise GA"

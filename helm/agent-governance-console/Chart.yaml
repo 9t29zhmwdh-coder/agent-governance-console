@@ -1,0 +1,16 @@
+apiVersion: v2
+name: agent-governance-console
+description: Governance, tracing, policy enforcement and observability for agentic workflows
+type: application
+version: 0.1.0
+appVersion: "0.12.0"
+home: https://github.com/9t29zhmwdh-coder/agent-governance-console
+sources:
+  - https://github.com/9t29zhmwdh-coder/agent-governance-console
+maintainers:
+  - name: Rafael Yilmaz
+keywords:
+  - ai-governance
+  - agent-observability
+  - policy-enforcement
+  - responsible-ai

@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agc.fullname" . }}
+  labels:
+    {{- include "agc.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "agc.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agc.selectorLabels" . | nindent 8 }}
+        {{- if .Values.workloadIdentity.clientId }}
+        azure.workload.identity/use: "true"
+        {{- end }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "agc.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: agc-api
+          image: {{ include "agc.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- if .Values.persistence.enabled }}
+            - name: AGC_AUDIT_DB_DIR
+              value: /var/lib/agc/audit
+            {{- end }}
+            {{- if .Values.policies }}
+            - name: AGC_POLICY_DIR
+              value: /etc/agc/policies
+            {{- end }}
+            {{- if eq .Values.rbac.mode "hmac" }}
+            - name: AGC_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.rbac.hmac.existingSecret }}
+                  key: {{ .Values.rbac.hmac.existingSecretKey }}
+            {{- else if eq .Values.rbac.mode "aad" }}
+            - name: AGC_AAD_TENANT_ID
+              value: {{ .Values.rbac.aad.tenantId | quote }}
+            - name: AGC_AAD_AUDIENCE
+              value: {{ .Values.rbac.aad.audience | quote }}
+            {{- end }}
+            {{- if .Values.telemetry.enabled }}
+            - name: AGC_TELEMETRY_ENDPOINT
+              value: {{ .Values.telemetry.endpoint | quote }}
+            - name: AGC_TELEMETRY_SERVICE_NAME
+              value: {{ .Values.telemetry.serviceName | quote }}
+            {{- if .Values.telemetry.managedIdentityClientId }}
+            - name: AGC_TELEMETRY_MANAGED_IDENTITY_CLIENT_ID
+              value: {{ .Values.telemetry.managedIdentityClientId | quote }}
+            {{- else if .Values.telemetry.managedIdentity }}
+            - name: AGC_TELEMETRY_MANAGED_IDENTITY
+              value: "1"
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: audit
+              mountPath: /var/lib/agc/audit
+            {{- end }}
+            {{- if .Values.policies }}
+            - name: policies
+              mountPath: /etc/agc/policies
+              readOnly: true
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: audit
+          persistentVolumeClaim:
+            claimName: {{ include "agc.fullname" . }}-audit
+        {{- end }}
+        {{- if .Values.policies }}
+        - name: policies
+          configMap:
+            name: {{ include "agc.fullname" . }}-policies
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

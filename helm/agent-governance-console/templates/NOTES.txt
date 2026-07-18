@@ -1,0 +1,32 @@
+Agent Governance Console has been deployed.
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export NODE_PORT=$(kubectl get -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "agc.fullname" . }})
+  export NODE_IP=$(kubectl get nodes -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if contains "LoadBalancer" .Values.service.type }}
+  kubectl get svc {{ include "agc.fullname" . }} -w
+  (wait for EXTERNAL-IP, then browse to http://<EXTERNAL-IP>:{{ .Values.service.port }})
+{{- else }}
+  kubectl port-forward svc/{{ include "agc.fullname" . }} 8080:{{ .Values.service.port }}
+  open http://127.0.0.1:8080/dashboard
+{{- end }}
+
+{{- if not .Values.persistence.enabled }}
+
+NOTE: persistence.enabled is false. Every tenant's audit log lives only
+in this pod's memory and is lost on restart/rescheduling. Set
+persistence.enabled: true (and a storageClassName if your cluster needs
+one) for durable audit history.
+{{- end }}
+
+{{- if not .Values.rbac.mode }}
+
+NOTE: rbac.mode is unset. The REST API has no authentication -- every
+request is treated as Admin. Set rbac.mode to "hmac" or "aad" before
+exposing this outside a trusted network. See docs/helm.md.
+{{- end }}

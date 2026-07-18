@@ -1,0 +1,10 @@
+{{- if .Values.policies }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agc.fullname" . }}-policies
+  labels:
+    {{- include "agc.labels" . | nindent 4 }}
+data:
+  {{- toYaml .Values.policies | nindent 2 }}
+{{- end }}

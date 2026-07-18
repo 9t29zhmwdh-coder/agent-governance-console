@@ -56,6 +56,7 @@ Agent Governance Console (AGC) is an early-stage Rust workspace (`agc-core`, `ag
 | **Microsoft Sentinel export** | Available: `agc-cli sentinel export --format kql\|arm` generates 4 built-in analytics rule templates from AGC's audit table, as KQL files or a deployable ARM template — see [docs/sentinel.md](docs/sentinel.md) |
 | **Compliance report export** | Available: `GET /api/v1/compliance/report` (Markdown or `?format=json`), reporting against 4 of Microsoft's 6 Responsible AI principles from real tenant audit/trace data — see [docs/compliance.md](docs/compliance.md) |
 | **Dashboard UI** | Available: `GET /dashboard`, a self-contained static page (no build step) covering health, tenants, policies, per-tenant traces, a paginated audit table, and the compliance report — see [docs/dashboard.md](docs/dashboard.md) |
+| **Kubernetes deployment (Helm chart)** | Available: `helm/agent-governance-console`, plus a root `Dockerfile` — Deployment, Service, optional Ingress/HPA/PVC/policy-ConfigMap, both RBAC modes, Azure Workload Identity — see [docs/helm.md](docs/helm.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 
