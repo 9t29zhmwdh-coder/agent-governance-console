@@ -51,13 +51,13 @@ Agent Governance Console (AGC) is a v1.0.0 Rust workspace (`agc-core`, `agc-api`
 | **Microsoft Graph agent lookup** | Available: `agc-cli azure list-agents` (app registrations tagged `agc-agent`) |
 | **YAML policy DSL** | Available: `GovernancePolicy::from_yaml` parses YAML or JSON (one parser, YAML is a JSON superset); `agc-cli policy validate` for offline checks |
 | **Policy hot-reload** | Available: `AGC_POLICY_DIR` loads and live-reloads every policy file in a directory; a bad edit keeps the previous policy set instead of wiping it |
-| **OPA/Rego export** | Available: `agc-cli policy to-rego` renders a structural Rego stub per policy — a hand-porting starting point, not a full semantic translation |
+| **OPA/Rego export** | Available: `agc-cli policy to-rego` renders a structural Rego stub per policy, a hand-porting starting point, not a full semantic translation |
 | **RBAC for REST API** | Available: `AGC_JWT_SECRET` (HS256) or `AGC_AAD_TENANT_ID` (Entra ID RS256) gates writes to `Admin`, reads need `Viewer`; opt-in, off by default |
-| **Microsoft Sentinel export** | Available: `agc-cli sentinel export --format kql\|arm` generates 4 built-in analytics rule templates from AGC's audit table, as KQL files or a deployable ARM template — see [docs/sentinel.md](docs/sentinel.md) |
-| **Compliance report export** | Available: `GET /api/v1/compliance/report` (Markdown or `?format=json`), reporting against 4 of Microsoft's 6 Responsible AI principles from real tenant audit/trace data — see [docs/compliance.md](docs/compliance.md) |
-| **Dashboard UI** | Available: `GET /dashboard`, a self-contained static page (no build step) covering health, tenants, policies, per-tenant traces, a paginated audit table, and the compliance report — see [docs/dashboard.md](docs/dashboard.md) |
-| **Kubernetes deployment (Helm chart)** | Available: `helm/agent-governance-console`, plus a root `Dockerfile` — Deployment, Service, optional Ingress/HPA/PVC/policy-ConfigMap, both RBAC modes, Azure Workload Identity — see [docs/helm.md](docs/helm.md) |
-| **Ingest SLA (p99 < 10ms at 1K spans/s)** | Verified: `agc-cli bench ingest` — measured p99 well under 1ms at the target rate, holding at 2x rate and under a realistic worst case — see [docs/performance.md](docs/performance.md) |
+| **Microsoft Sentinel export** | Available: `agc-cli sentinel export --format kql\|arm` generates 4 built-in analytics rule templates from AGC's audit table, as KQL files or a deployable ARM template (see [docs/sentinel.md](docs/sentinel.md)) |
+| **Compliance report export** | Available: `GET /api/v1/compliance/report` (Markdown or `?format=json`), reporting against 4 of Microsoft's 6 Responsible AI principles from real tenant audit/trace data (see [docs/compliance.md](docs/compliance.md)) |
+| **Dashboard UI** | Available: `GET /dashboard`, a self-contained static page (no build step) covering health, tenants, policies, per-tenant traces, a paginated audit table, and the compliance report (see [docs/dashboard.md](docs/dashboard.md)) |
+| **Kubernetes deployment (Helm chart)** | Available: `helm/agent-governance-console`, plus a root `Dockerfile`: Deployment, Service, optional Ingress/HPA/PVC/policy-ConfigMap, both RBAC modes, Azure Workload Identity (see [docs/helm.md](docs/helm.md)) |
+| **Ingest SLA (p99 < 10ms at 1K spans/s)** | Verified: `agc-cli bench ingest`, measured p99 well under 1ms at the target rate, holding at 2x rate and under a realistic worst case (see [docs/performance.md](docs/performance.md)) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 
@@ -67,7 +67,7 @@ Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_referen
 
 - Rust 1.78+
 - Docker (optional, for containerised deployment)
-- Azure subscription (optional, for OTLP telemetry export, audit push to Azure Monitor, and Microsoft Graph agent lookup — see [docs/azure_integration.md](docs/azure_integration.md))
+- Azure subscription (optional, for OTLP telemetry export, audit push to Azure Monitor, and Microsoft Graph agent lookup; see [docs/azure_integration.md](docs/azure_integration.md))
 
 ---
 
@@ -178,7 +178,7 @@ curl -w "\nHTTP %{http_code}\n" http://127.0.0.1:8080/api/v1/traces/count -H "X-
 # library using the same secret and a {"roles": ["admin"]} payload.
 ```
 
-Or point `AGC_AAD_TENANT_ID` (+ optional `AGC_AAD_AUDIENCE`) at a real Entra ID tenant instead of a shared secret — see `docs/api_reference.md` for the full RBAC section.
+Or point `AGC_AAD_TENANT_ID` (+ optional `AGC_AAD_AUDIENCE`) at a real Entra ID tenant instead of a shared secret; see `docs/api_reference.md` for the full RBAC section.
 
 ### Try the Azure integration (optional)
 

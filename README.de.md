@@ -50,13 +50,13 @@ Agent Governance Console (AGC) ist ein Rust-Workspace (`agc-core`, `agc-api`, `a
 | **Microsoft-Graph-Agent-Lookup** | Verfügbar: `agc-cli azure list-agents` (App-Registrierungen mit Tag `agc-agent`) |
 | **YAML-Policy-DSL** | Verfügbar: `GovernancePolicy::from_yaml` parst YAML oder JSON (ein Parser, YAML ist ein JSON-Superset); `agc-cli policy validate` für Offline-Checks |
 | **Policy-Hot-Reload** | Verfügbar: `AGC_POLICY_DIR` lädt und aktualisiert jede Policy-Datei in einem Verzeichnis live; ein fehlerhafter Edit behält den vorherigen Policy-Stand statt ihn zu löschen |
-| **OPA/Rego-Export** | Verfügbar: `agc-cli policy to-rego` rendert einen strukturellen Rego-Stub pro Policy — ein Ausgangspunkt zum manuellen Portieren, keine vollständige semantische Übersetzung |
+| **OPA/Rego-Export** | Verfügbar: `agc-cli policy to-rego` rendert einen strukturellen Rego-Stub pro Policy, ein Ausgangspunkt zum manuellen Portieren, keine vollständige semantische Übersetzung |
 | **RBAC für REST-API** | Verfügbar: `AGC_JWT_SECRET` (HS256) oder `AGC_AAD_TENANT_ID` (Entra ID RS256) schützt Schreibzugriffe mit `Admin`, Lesezugriffe brauchen `Viewer`; opt-in, standardmässig aus |
-| **Microsoft-Sentinel-Export** | Verfügbar: `agc-cli sentinel export --format kql\|arm` erzeugt 4 eingebaute Analytics-Rule-Vorlagen aus der AGC-Audit-Tabelle, als KQL-Dateien oder als deploybares ARM-Template — siehe [docs/sentinel.md](docs/sentinel.md) |
-| **Compliance-Report-Export** | Verfügbar: `GET /api/v1/compliance/report` (Markdown oder `?format=json`), berichtet gegen 4 der 6 Microsoft-Responsible-AI-Prinzipien anhand echter Tenant-Audit-/Trace-Daten — siehe [docs/compliance.md](docs/compliance.md) |
-| **Dashboard-UI** | Verfügbar: `GET /dashboard`, eine eigenständige statische Seite (kein Build-Schritt) mit Health, Tenants, Policies, Tenant-Traces, paginierter Audit-Tabelle und Compliance-Report — siehe [docs/dashboard.md](docs/dashboard.md) |
-| **Kubernetes-Deployment (Helm-Chart)** | Verfügbar: `helm/agent-governance-console` plus ein Root-`Dockerfile` — Deployment, Service, optionales Ingress/HPA/PVC/Policy-ConfigMap, beide RBAC-Modi, Azure Workload Identity — siehe [docs/helm.md](docs/helm.md) |
-| **Ingest-SLA (p99 < 10ms bei 1K Spans/s)** | Verifiziert: `agc-cli bench ingest` — gemessener p99 deutlich unter 1ms bei Zielrate, hält bei doppelter Rate und im realistischen Worst Case — siehe [docs/performance.md](docs/performance.md) |
+| **Microsoft-Sentinel-Export** | Verfügbar: `agc-cli sentinel export --format kql\|arm` erzeugt 4 eingebaute Analytics-Rule-Vorlagen aus der AGC-Audit-Tabelle, als KQL-Dateien oder als deploybares ARM-Template (siehe [docs/sentinel.md](docs/sentinel.md)) |
+| **Compliance-Report-Export** | Verfügbar: `GET /api/v1/compliance/report` (Markdown oder `?format=json`), berichtet gegen 4 der 6 Microsoft-Responsible-AI-Prinzipien anhand echter Tenant-Audit-/Trace-Daten (siehe [docs/compliance.md](docs/compliance.md)) |
+| **Dashboard-UI** | Verfügbar: `GET /dashboard`, eine eigenständige statische Seite (kein Build-Schritt) mit Health, Tenants, Policies, Tenant-Traces, paginierter Audit-Tabelle und Compliance-Report (siehe [docs/dashboard.md](docs/dashboard.md)) |
+| **Kubernetes-Deployment (Helm-Chart)** | Verfügbar: `helm/agent-governance-console` plus ein Root-`Dockerfile`: Deployment, Service, optionales Ingress/HPA/PVC/Policy-ConfigMap, beide RBAC-Modi, Azure Workload Identity (siehe [docs/helm.md](docs/helm.md)) |
+| **Ingest-SLA (p99 < 10ms bei 1K Spans/s)** | Verifiziert: `agc-cli bench ingest`, gemessener p99 deutlich unter 1ms bei Zielrate, hält bei doppelter Rate und im realistischen Worst Case (siehe [docs/performance.md](docs/performance.md)) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
 
@@ -64,7 +64,7 @@ Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](d
 
 - Rust 1.78+
 - Docker (optional, für containerisiertes Deployment)
-- Azure-Abonnement (optional, für OTLP-Telemetrie-Export, Audit-Push zu Azure Monitor und Microsoft-Graph-Agent-Lookup — siehe [docs/azure_integration.md](docs/azure_integration.md))
+- Azure-Abonnement (optional, für OTLP-Telemetrie-Export, Audit-Push zu Azure Monitor und Microsoft-Graph-Agent-Lookup; siehe [docs/azure_integration.md](docs/azure_integration.md))
 
 ## Schnellstart
 
@@ -174,7 +174,7 @@ curl -w "\nHTTP %{http_code}\n" http://127.0.0.1:8080/api/v1/traces/count -H "X-
 # HS256-JWT-Bibliothek, gleiches Secret, Payload {"roles": ["admin"]}.
 ```
 
-Oder `AGC_AAD_TENANT_ID` (+ optional `AGC_AAD_AUDIENCE`) auf einen echten Entra-ID-Tenant statt ein geteiltes Secret zeigen — vollständige RBAC-Sektion in `docs/api_reference.md`.
+Oder `AGC_AAD_TENANT_ID` (+ optional `AGC_AAD_AUDIENCE`) auf einen echten Entra-ID-Tenant statt ein geteiltes Secret zeigen; vollständige RBAC-Sektion in `docs/api_reference.md`.
 
 ### Die Azure-Integration ausprobieren (optional)
 

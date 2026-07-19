@@ -24,7 +24,7 @@ pub struct GovernancePolicy {
 impl GovernancePolicy {
     /// Parses a policy from a YAML document. Since YAML 1.2 is a JSON
     /// superset, this also accepts plain JSON policy documents (the
-    /// `POST /api/v1/policies` format from v0.2.0) unchanged — one parser
+    /// `POST /api/v1/policies` format from v0.2.0) unchanged: one parser
     /// for both, per `docs/policy_dsl.md`.
     pub fn from_yaml(s: &str) -> Result<Self, PolicyError> {
         Ok(serde_norway::from_str(s)?)

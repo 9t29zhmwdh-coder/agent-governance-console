@@ -2,19 +2,19 @@
 
 ## Overview
 
-Policies are defined as YAML or JSON — one parser handles both, since
+Policies are defined as YAML or JSON: one parser handles both, since
 YAML 1.2 is a JSON superset (`GovernancePolicy::from_yaml`). Each policy
 has a scope and a list of rules. Rules evaluate conditions against
 incoming spans and trigger actions.
 
 Three ways to load a policy:
-- `POST /api/v1/policies` (JSON body) — see `docs/api_reference.md`.
+- `POST /api/v1/policies` (JSON body); see `docs/api_reference.md`.
 - Hot-reload: point `agc-api` at a directory via `AGC_POLICY_DIR`; every
   `*.yaml`/`*.yml`/`*.json` file in it (non-recursive) is loaded at
   startup and reloaded on every filesystem change. A parse error in any
-  file aborts that reload and keeps the previous policy set — a bad edit
+  file aborts that reload and keeps the previous policy set: a bad edit
   never silently wipes a working policy set.
-- `agc-cli policy validate <file>` — parses a file and reports whether
+- `agc-cli policy validate <file>`: parses a file and reports whether
   it's valid, without needing a running server.
 
 ## Schema
@@ -51,7 +51,7 @@ syntax) and is accepted by every loading path above too.
 |------|--------|-------------|
 | `warn` | `message: string` | Appends a `warned` audit record; the span is still ingested |
 | `block` | `reason: string` | Appends a `blocked` audit record; the span is rejected with `403` and never stored |
-| `alert` | `channel: string` | Appends an `alerted` audit record; external delivery (e.g. a real webhook) is a future roadmap item, not implemented yet — today this only records the decision |
+| `alert` | `channel: string` | Appends an `alerted` audit record; external delivery (e.g. a real webhook) is a future roadmap item, not implemented yet: today this only records the decision |
 
 ## Agent Scope
 
@@ -70,7 +70,7 @@ Renders a **structural** [Open Policy Agent](https://www.openpolicyagent.org/)
 Rego module: one `package`, one `deny`/`warn`/`alert` partial rule per
 policy rule, named after the rule's `rule_id`. This is a starting point
 for hand-porting to real OPA evaluation, not a full semantic
-translation of AGC's condition model — in particular:
+translation of AGC's condition model, in particular:
 
 - `span_level_at_least` becomes a plain string equality check
   (`input.span.level == "error"`), not a real severity-order comparison,
