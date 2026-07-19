@@ -9,7 +9,7 @@
 #
 # NOTE: written correct-by-construction against the documented az CLI and
 # DCR JSON contracts, but not run end-to-end against a real Azure
-# subscription (none was available while writing it — see the v0.3.0
+# subscription (none was available while writing it, see the v0.3.0
 # CHANGELOG entry). The Rust HTTP clients this feeds (agc-azure/) do have
 # real, mock-server-verified tests; this script is the one piece of the
 # v0.3.0 milestone that is unverified against live Azure. If a step's az

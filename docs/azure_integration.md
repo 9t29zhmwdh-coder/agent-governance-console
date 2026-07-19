@@ -3,7 +3,7 @@
 ## Overview
 
 AGC supports four Azure integration points, all opt-in and all authenticated
-via **Managed Identity** — no client secret is ever configured:
+via **Managed Identity**: no client secret is ever configured:
 
 | Integration | Purpose | Required AAD Permissions |
 |-------------|---------|--------------------------|
@@ -20,7 +20,7 @@ mock HTTP server (`wiremock`); **Managed Identity's real endpoint (IMDS,
 resource**, so it cannot be exercised end-to-end from anywhere else,
 including CI. `scripts/azure_setup.sh` is similarly correct-by-construction
 against the documented `az` CLI/DCR contracts but has not been run against
-a live subscription — see its header comment.
+a live subscription, see its header comment.
 
 ---
 
@@ -58,7 +58,7 @@ cargo run --bin agc-api
 ```
 
 `AGC_TELEMETRY_ENDPOINT` must be the **full traces endpoint URL, including
-the `/v1/traces` path** — it's used exactly as given, not treated as a
+the `/v1/traces` path**: it's used exactly as given, not treated as a
 base URL. A misconfigured endpoint logs a warning at startup and leaves
 telemetry disabled rather than failing the whole server.
 
@@ -138,7 +138,7 @@ curl -X POST \
 ```
 
 (The Logs Ingestion API expects a JSON array; the local export is NDJSON,
-hence wrapping it with `paste`/`[...]` here — `agc-cli azure push-audit`
+hence wrapping it with `paste`/`[...]` here; `agc-cli azure push-audit`
 does this conversion for you.)
 
 ---
@@ -177,7 +177,7 @@ az rest \
 Instance Metadata Service (IMDS) at `http://169.254.169.254/metadata/identity/oauth2/token`,
 with a 2-second client timeout (IMDS responds in milliseconds when
 present; off Azure the address is typically silently unroutable rather
-than actively refused, so a short timeout matters — this was a real bug
+than actively refused, so a short timeout matters: this was a real bug
 found and fixed during development, see the v0.3.0 CHANGELOG entry).
 
 - **System-assigned identity** (default): no configuration needed beyond
@@ -187,5 +187,5 @@ found and fixed during development, see the v0.3.0 CHANGELOG entry).
   `agc-cli azure` subcommand.
 
 No client secret, certificate, or connection string is ever read from
-AGC's own configuration for these two integrations — only the Managed
+AGC's own configuration for these two integrations, only the Managed
 Identity token flow.
