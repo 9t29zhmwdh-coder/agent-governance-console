@@ -5,7 +5,7 @@ use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::trace::{SdkTracer, SdkTracerProvider};
 
 /// Real OTLP (HTTP) span exporter, for shipping AGC trace spans to any
-/// OTLP-compatible collector — including Azure Monitor's native OTLP
+/// OTLP-compatible collector, including Azure Monitor's native OTLP
 /// ingestion endpoint (`https://<region>.otelcollector.azure.com/v1/traces`,
 /// see `docs/azure_integration.md`) or a self-hosted OpenTelemetry
 /// Collector in front of Application Insights. Opt-in only: nothing is
@@ -23,7 +23,7 @@ impl OtlpExporter {
     /// tagged with `service_name`. `endpoint` must be the full traces
     /// endpoint URL, including the `/v1/traces` path (e.g.
     /// `https://<region>.otelcollector.azure.com/v1/traces`, exactly as
-    /// `docs/azure_integration.md` documents it) — a programmatically set
+    /// `docs/azure_integration.md` documents it). A programmatically set
     /// endpoint is used verbatim, not treated as a base URL to append to.
     ///
     /// `bearer_token`, if given, is sent as a static `Authorization: Bearer
@@ -51,7 +51,7 @@ impl OtlpExporter {
         // whatever thread called `record_span`. A simple/synchronous
         // exporter did the HTTP call inline on the caller's thread instead,
         // which deadlocked when `record_span` was called from inside an
-        // already-running Tokio runtime (e.g. an axum handler) — the
+        // already-running Tokio runtime (e.g. an axum handler): the
         // exporter's internal `block_on` had nowhere free to run.
         let provider = SdkTracerProvider::builder().with_batch_exporter(exporter).build();
         let tracer = provider.tracer(service_name.to_string());

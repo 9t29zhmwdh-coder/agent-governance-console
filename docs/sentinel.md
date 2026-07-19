@@ -18,10 +18,10 @@ The Rust implementation lives in `agc-core::sentinel`: `SentinelRule`,
 `builtin_rules(table)`, `to_kql()`, `to_arm_resource()`. All 4 rules are
 correct against the exact column names `scripts/azure_setup.sh`'s custom
 table declares (`id`, `timestamp`, `agent_id`, `action`, `outcome`,
-`policy_id`, `details`, plus Log Analytics' own `TimeGenerated`) — a
+`policy_id`, `details`, plus Log Analytics' own `TimeGenerated`); a
 dedicated test tokenizes every query and rejects any column-like
 identifier not in that real schema. **Not verified against a live
-Sentinel workspace** (none was available while building this) — same
+Sentinel workspace** (none was available while building this), the same
 disclosed-limitation pattern as the rest of this portfolio's Azure
 integrations, see `docs/azure_integration.md`.
 
@@ -62,7 +62,7 @@ Real, tested end-to-end: `builtin_rules()`'s shape and column references
 (5 unit tests in `agc-core::sentinel`), and the CLI itself (`sentinel
 export` actually writing real KQL text and valid, well-formed ARM JSON
 to disk for both formats, plus its error path for an unknown `--format`
-and a custom `--table` name — checked by hand against the written files,
+and a custom `--table` name, checked by hand against the written files,
 not just that the command exits `0`).
 
 Not verified: the queries have not been run against a live Sentinel
