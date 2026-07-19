@@ -1,4 +1,4 @@
-# Agent Governance Console — Professional Repo Skeleton
+# Agent Governance Console: Professional Repo Skeleton
 
 **Generated:** 2026-06-16 | **Release:** v0.1.0 | **Stack:** Rust (agc-core, agc-api/Axum, agc-cli)
 
@@ -60,7 +60,7 @@ agent-governance-console/
 ### `agc-core/src/lib.rs` (public API + tests)
 
 ```rust
-//! Agent Governance Console — core library.
+//! Agent Governance Console: core library.
 
 pub mod audit;
 pub mod policy;
@@ -178,7 +178,7 @@ jobs:
 
 ## Migration Checklist
 
-### Step 1 — Create GitHub repo
+### Step 1: Create GitHub repo
 
 ```bash
 gh repo create 9t29zhmwdh-coder/agent-governance-console \
@@ -186,7 +186,7 @@ gh repo create 9t29zhmwdh-coder/agent-governance-console \
   --description "Governance, tracing, policy enforcement and observability for agentic workflows"
 ```
 
-### Step 2 — Prepare blobs (Git Tree API, single commit)
+### Step 2: Prepare blobs (Git Tree API, single commit)
 
 ```bash
 export PATH="/usr/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
@@ -228,7 +228,7 @@ done
 TREE_JSON+="]"
 ```
 
-### Step 3 — Create tree, commit, branch
+### Step 3: Create tree, commit, branch
 
 ```bash
 TREE_SHA=$(echo "{\"tree\":$TREE_JSON}" | \
@@ -241,32 +241,32 @@ $GH api "repos/$OWNER/$REPO/git/refs" \
   --method POST -f ref="refs/heads/main" -f sha="$COMMIT_SHA"
 ```
 
-### Step 4 — Set default branch
+### Step 4: Set default branch
 
 ```bash
 $GH api "repos/$OWNER/$REPO" --method PATCH -f default_branch="main"
 ```
 
-### Step 5 — Validate
+### Step 5: Validate
 
 ```bash
 $GH api "repos/$OWNER/$REPO/contents/SKELETON.md" --jq '.name'
 $GH api "repos/$OWNER/$REPO/contents/agc-core/src/lib.rs" --jq '.name'
 ```
 
-### Step 6 — Run tests locally
+### Step 6: Run tests locally
 
 ```bash
 cd /tmp/agc && cargo check --workspace && cargo test --workspace
 ```
 
-### Step 7 — Push CI workflow (requires workflows scope)
+### Step 7: Push CI workflow (requires workflows scope)
 
 ```bash
 gh auth refresh -s workflows
 ```
 
-### Step 8 — Add topics
+### Step 8: Add topics
 
 ```bash
 $GH api "repos/$OWNER/$REPO/topics" \
@@ -275,7 +275,7 @@ $GH api "repos/$OWNER/$REPO/topics" \
   -f "names[]=azure" -f "names[]=agents" -f "names[]=observability"
 ```
 
-### Step 9 — Tag initial commit
+### Step 9: Tag initial commit
 
 ```bash
 INIT_SHA=$($GH api "repos/$OWNER/$REPO/git/ref/heads/main" --jq '.object.sha')
@@ -283,14 +283,14 @@ $GH api "repos/$OWNER/$REPO/git/refs" \
   --method POST -f ref="refs/tags/v0.1.0" -f sha="$INIT_SHA"
 ```
 
-### Step 10 — Create release
+### Step 10: Create release
 
 ```bash
 $GH api "repos/$OWNER/$REPO/releases" \
   --method POST \
   -f tag_name="v0.1.0" \
-  -f name="v0.1.0 — Initial import" \
-  -f body="Initial import — earliest commit date: <EARLIEST_COMMIT_DATE>
+  -f name="v0.1.0: Initial import" \
+  -f body="Initial import, earliest commit date: <EARLIEST_COMMIT_DATE>
 
 Governance, tracing, policy enforcement and observability for agentic workflows.
 Trace ingestion, audit log (NDJSON/CSV export), policy engine stubs, opt-in Azure Monitor telemetry." \
@@ -306,10 +306,10 @@ Trace ingestion, audit log (NDJSON/CSV export), policy engine stubs, opt-in Azur
   "repo": "agent-governance-console",
   "owner": "9t29zhmwdh-coder",
   "tag": "v0.1.0",
-  "name": "v0.1.0 — Initial import",
+  "name": "v0.1.0: Initial import",
   "earliest_commit_date": "<EARLIEST_COMMIT_DATE>",
   "prerelease": true,
-  "body": "Initial import — earliest commit date: <EARLIEST_COMMIT_DATE>\n\nGovernance, tracing, policy enforcement and observability for agentic workflows.\nTrace ingestion, audit log (NDJSON/CSV export), policy engine stubs, opt-in Azure Monitor telemetry.",
+  "body": "Initial import, earliest commit date: <EARLIEST_COMMIT_DATE>\n\nGovernance, tracing, policy enforcement and observability for agentic workflows.\nTrace ingestion, audit log (NDJSON/CSV export), policy engine stubs, opt-in Azure Monitor telemetry.",
   "topics": ["rust", "opentelemetry", "governance", "azure", "agents", "observability"],
   "license": "MIT",
   "stack": "Rust (agc-core, agc-api/Axum, agc-cli)",
@@ -339,7 +339,7 @@ Trace ingestion, audit log (NDJSON/CSV export), policy engine stubs, opt-in Azur
 ## Test Plan
 
 - [ ] `cargo check --workspace` passes
-- [ ] `cargo test --workspace` — all 6 tests green
+- [ ] `cargo test --workspace`: all 6 tests green
 - [ ] `cargo clippy --workspace -- -D warnings` clean
 - [ ] `curl http://127.0.0.1:8080/health` returns `{"status":"ok"}`
 - [ ] README renders correctly on GitHub
@@ -365,7 +365,7 @@ Trace ingestion, audit log (NDJSON/CSV export), policy engine stubs, opt-in Azur
 ## Testplan
 
 - [ ] `cargo check --workspace` erfolgreich
-- [ ] `cargo test --workspace` — alle 6 Tests grün
+- [ ] `cargo test --workspace`: alle 6 Tests grün
 - [ ] `cargo clippy --workspace -- -D warnings` sauber
 - [ ] `curl http://127.0.0.1:8080/health` gibt `{"status":"ok"}` zurück
 - [ ] README wird auf GitHub korrekt dargestellt
@@ -374,4 +374,4 @@ Trace ingestion, audit log (NDJSON/CSV export), policy engine stubs, opt-in Azur
 
 ---
 
-*agent-governance-console — RayStudio · Rafael Yilmaz · MIT License · 2026*
+*agent-governance-console · RayStudio · Rafael Yilmaz · MIT License · 2026*

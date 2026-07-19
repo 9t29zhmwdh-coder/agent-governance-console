@@ -1,4 +1,4 @@
-# Policy DSL Reference — Agent Governance Console
+# Policy DSL Reference: Agent Governance Console
 
 ## Overview
 

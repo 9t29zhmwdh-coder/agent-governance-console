@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# export_audit.sh — Export AGC audit log via REST API
+# export_audit.sh: Export AGC audit log via REST API
 #
 # Usage: AGC_URL=http://127.0.0.1:8080 ./scripts/export_audit.sh [ndjson|csv]
 #

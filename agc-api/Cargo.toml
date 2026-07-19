@@ -3,7 +3,7 @@ name        = "agc-api"
 version.workspace     = true
 edition.workspace     = true
 license.workspace     = true
-description = "Agent Governance Console — Axum REST API server"
+description = "Agent Governance Console: Axum REST API server"
 
 [lib]
 name = "agc_api"

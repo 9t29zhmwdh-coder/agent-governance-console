@@ -1,4 +1,4 @@
-# Security Policy — Agent Governance Console
+# Security Policy: Agent Governance Console
 
 ## Supported Versions / Unterstützte Versionen
 
@@ -21,10 +21,10 @@ Response within 7 business days.
 
 | Property | Detail |
 |----------|--------|
-| Network (default) | Binds to `127.0.0.1:8080` — no external exposure |
+| Network (default) | Binds to `127.0.0.1:8080`, no external exposure |
 | Telemetry | Opt-in; disabled by default |
 | Audit log | Append-only; no delete endpoint |
-| Secrets | No credentials stored — OTLP endpoint in env var or config file |
+| Secrets | No credentials stored (OTLP endpoint in env var or config file) |
 | Dependencies | Pinned in `Cargo.lock`; audited with `cargo audit` |
 | API auth | None in v0.1 (local-only); AAD JWT planned for v1.0 |
 

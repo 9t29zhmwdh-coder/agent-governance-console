@@ -40,7 +40,7 @@ fn main() {
     println!("Applicable rules: {}", rules.len());
 
     for rule in &rules {
-        println!("  Rule: {} — {:?}", rule.rule_id, rule.action);
+        println!("  Rule: {}, action: {:?}", rule.rule_id, rule.action);
 
         // Record the block in the audit log
         audit.append(AuditRecord {

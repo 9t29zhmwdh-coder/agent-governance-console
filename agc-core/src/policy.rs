@@ -63,7 +63,7 @@ impl PolicyEngine {
         self.policies.len()
     }
 
-    /// Returns matching rules for a given agent and operation (stub — full eval in v0.2.0).
+    /// Returns matching rules for a given agent and operation (stub: full eval in v0.2.0).
     pub fn applicable_rules(&self, agent_id: &str, _operation: &str) -> Vec<&PolicyRule> {
         self.policies
             .iter()

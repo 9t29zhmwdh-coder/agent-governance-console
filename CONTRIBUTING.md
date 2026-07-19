@@ -1,4 +1,4 @@
-# Contributing — Agent Governance Console
+# Contributing: Agent Governance Console
 
 ## Contributing / Mitwirken
 
@@ -31,7 +31,7 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
 
 ## Privacy Rules
 
-- Telemetry must remain opt-in — never enable by default
+- Telemetry must remain opt-in: never enable by default
 - No credentials, API keys or OTLP endpoints in source
 - No real agent execution traces or audit records in test fixtures
 
@@ -40,7 +40,7 @@ Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
 - `rustfmt` default settings (enforced in CI)
 - `clippy --workspace -- -D warnings` must pass
 - No `unwrap()` in library code or API handlers
-- `AuditLog` is append-only — never expose a delete/clear method
+- `AuditLog` is append-only: never expose a delete/clear method
 
 ## API Versioning
 

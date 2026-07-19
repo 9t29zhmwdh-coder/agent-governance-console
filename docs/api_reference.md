@@ -1,4 +1,4 @@
-# API Reference — agc-api
+# API Reference: agc-api
 
 ## Base URL
 

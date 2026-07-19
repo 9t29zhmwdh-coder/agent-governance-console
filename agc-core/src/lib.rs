@@ -1,4 +1,4 @@
-//! Agent Governance Console — core library.
+//! Agent Governance Console: core library.
 //!
 //! Provides trace ingestion, governance policy enforcement, audit logging
 //! and opt-in telemetry for agentic workflow observability.
