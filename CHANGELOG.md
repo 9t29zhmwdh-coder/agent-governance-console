@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.2] - 2026-07-20
+
+### Changed
+
+- OpenSSF Scorecard workflow and badge.
+- `copilot-instructions.md` for consistent AI-assisted contributions.
+- Pinned the coverage job's actions to commit SHAs.
+- Removed remaining em-dash/en-dash characters from docs and code comments.
+- Split the README's security/CI badges onto their own line, separate from the platform/tech/AI badges (they were rendering as a single merged line).
+
 ## [1.0.1] - 2026-07-18
 
 ### Security
