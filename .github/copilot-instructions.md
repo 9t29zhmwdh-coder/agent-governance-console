@@ -14,6 +14,7 @@ Agent Governance Console (AGC) is a Rust workspace (`agc-core`, `agc-api`, `agc-
 - README.md and README.de.md must stay in sync: same structure, same sections, both languages updated together
 - Any functional change needs a CHANGELOG.md entry and follows semantic versioning: patch for fixes/docs, minor for new features, major for breaking changes
 - No separate License badge in README (intentional project convention, not an omission)
+- README badge row is two lines: line 1 = CI, CodeQL, OpenSSF Scorecard, OpenSSF Best Practices (in that order); line 2 = platform/tech/AI badges. Never add a badge as an isolated standalone line
 
 ## Git workflow
 - This repo enforces branch protection on main: no direct pushes, no force pushes, a pull request is required for every change
