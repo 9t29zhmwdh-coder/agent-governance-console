@@ -21,6 +21,7 @@ resource**, so it cannot be exercised end-to-end from anywhere else,
 including CI. `scripts/azure_setup.sh` is similarly correct-by-construction
 against the documented `az` CLI/DCR contracts but has not been run against
 a live subscription; see its header comment.
+a live subscription, see its header comment.
 
 ---
 

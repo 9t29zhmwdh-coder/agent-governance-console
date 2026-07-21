@@ -24,6 +24,7 @@ impl OtlpExporter {
     /// endpoint URL, including the `/v1/traces` path (e.g.
     /// `https://<region>.otelcollector.azure.com/v1/traces`, exactly as
     /// `docs/azure_integration.md` documents it): a programmatically set
+    /// `docs/azure_integration.md` documents it). A programmatically set
     /// endpoint is used verbatim, not treated as a base URL to append to.
     ///
     /// `bearer_token`, if given, is sent as a static `Authorization: Bearer

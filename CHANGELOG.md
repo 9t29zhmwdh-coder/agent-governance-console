@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.2] - 2026-07-20
+
+### Changed
+
+- OpenSSF Scorecard workflow and badge.
+- `copilot-instructions.md` for consistent AI-assisted contributions.
+- Pinned the coverage job's actions to commit SHAs.
+- Removed remaining em-dash/en-dash characters from docs and code comments.
+- Split the README's security/CI badges onto their own line, separate from the platform/tech/AI badges (they were rendering as a single merged line).
+
 ## [1.0.1] - 2026-07-18
 
 ### Security
@@ -115,6 +125,7 @@ ROADMAP.md's "v1.0.0: Enterprise GA" milestone (item 3 of 8).
 
 ### Known limitation
 - Correct against the exact column names `azure_setup.sh`'s custom table declares, but not verified against a live Sentinel workspace (none was available while building this), same disclosed-limitation pattern as the rest of this portfolio's Azure integrations.
+- Correct against the exact column names `azure_setup.sh`'s custom table declares, but not verified against a live Sentinel workspace (none was available while building this): the same disclosed-limitation pattern as the rest of this portfolio's Azure integrations.
 
 ## [0.7.0] - 2026-07-18
 
@@ -143,6 +154,8 @@ only declared once all of them land.
 ### Added
 - `X-Tenant-Id` header (required on every trace/audit endpoint, `400` if missing or empty; no silent "default tenant" fallback that would pool everyone's data together) resolves an isolated `TraceStore`+`AuditLog` pair per tenant, created lazily on that tenant's first request.
 - `AGC_AUDIT_DB_DIR` (replaces `AGC_AUDIT_DB_PATH`): with it set, each tenant's audit log persists to its own `{tenant_id}.sqlite` file, genuine storage-level isolation, verified by inspecting the files on disk in a real end-to-end test, not just a filtered view over one shared store.
+- `X-Tenant-Id` header (required on every trace/audit endpoint, `400` if missing or empty, with no silent "default tenant" fallback that would pool everyone's data together) resolves an isolated `TraceStore`+`AuditLog` pair per tenant, created lazily on that tenant's first request.
+- `AGC_AUDIT_DB_DIR` (replaces `AGC_AUDIT_DB_PATH`): with it set, each tenant's audit log persists to its own `{tenant_id}.sqlite` file: genuine storage-level isolation, verified by inspecting the files on disk in a real end-to-end test, not just a filtered view over one shared store.
 - `GET /api/v1/tenants`: lists every tenant ID seen so far (sorted).
 - 5 new integration tests covering tenant isolation (a different tenant's data stays at zero), the missing-header rejection, the tenant list endpoint, and that policies correctly stay global across tenants (not tenant-scoped, per this item's own "in trace/audit stores" wording).
 
@@ -164,6 +177,7 @@ the version to 0.4.0).
 - `PolicyEngine::load_policies_from_dir`: loads every `*.yaml`/`*.yml`/`*.json` file in a directory (non-recursive, sorted), replacing the full policy set atomically. A parse error in any file aborts that reload and leaves the previous policy set untouched, so one bad edit can't silently wipe a working configuration.
 - `AGC_POLICY_DIR` env var (`agc-api`): loads policies from a directory at startup and hot-reloads on every filesystem change, via a new `agc_api::spawn_policy_hot_reload` using the `notify` crate.
 - `GovernancePolicy::to_rego_stub`: renders a structural Open Policy Agent (Rego) module, one `deny`/`warn`/`alert` partial rule per policy rule. Explicitly a hand-porting starting point, not a full semantic translation of AGC's condition model (see `docs/policy_dsl.md` for exactly what's approximate, e.g. `span_level_at_least` becomes a string equality check, not a real severity-order comparison).
+- `GovernancePolicy::to_rego_stub`: renders a structural Open Policy Agent (Rego) module, with one `deny`/`warn`/`alert` partial rule per policy rule. Explicitly a hand-porting starting point, not a full semantic translation of AGC's condition model (see `docs/policy_dsl.md` for exactly what's approximate, e.g. `span_level_at_least` becomes a string equality check, not a real severity-order comparison).
 - `agc-cli policy validate <file>`: parses a policy file and reports whether it's valid, without needing a running server.
 - `agc-cli policy to-rego <file>`: prints the Rego stub for a policy file.
 - 18 new tests (14 in `agc-core` covering YAML parsing/round-tripping/directory loading/Rego generation, 1 real end-to-end `agc-api` integration test that writes an actual file to a real directory and confirms the real filesystem watcher picks it up and the loaded policy actually gates a real request), all passing; clippy clean on all targets.
