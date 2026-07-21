@@ -16,6 +16,7 @@ set, each tenant's audit log also gets its own SQLite file
 
 **Policies are not tenant-scoped.** A policy loaded via `POST
 /api/v1/policies` is shared governance that gates every tenant's
+ingestion; this is deliberate (see `ROADMAP.md`), not a gap.
 ingestion: this is deliberate (see `ROADMAP.md`), not a gap.
 
 ### GET /api/v1/tenants
@@ -64,6 +65,7 @@ Responses:
 tokens. The AAD/JWKS path's fetch-`kid`-lookup-RS256-verify pipeline is
 tested against a real mock JWKS server with a real RSA-signed token, but
 has not been exercised against a live Entra ID tenant (none was
+available while building this), same disclosed limitation as
 available while building this), the same disclosed limitation as
 `agc_azure::ManagedIdentityCredential`, see `docs/azure_integration.md`.
 

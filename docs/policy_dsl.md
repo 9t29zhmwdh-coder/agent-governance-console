@@ -8,6 +8,11 @@ has a scope and a list of rules. Rules evaluate conditions against
 incoming spans and trigger actions.
 
 Three ways to load a policy:
+- `POST /api/v1/policies` (JSON body); see `docs/api_reference.md`.
+- Hot-reload: point `agc-api` at a directory via `AGC_POLICY_DIR`; every
+  `*.yaml`/`*.yml`/`*.json` file in it (non-recursive) is loaded at
+  startup and reloaded on every filesystem change. A parse error in any
+  file aborts that reload and keeps the previous policy set: a bad edit
 - `POST /api/v1/policies` (JSON body): see `docs/api_reference.md`.
 - Hot-reload: point `agc-api` at a directory via `AGC_POLICY_DIR`; every
   `*.yaml`/`*.yml`/`*.json` file in it (non-recursive) is loaded at

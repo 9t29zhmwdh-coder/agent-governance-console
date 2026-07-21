@@ -124,6 +124,7 @@ ROADMAP.md's "v1.0.0: Enterprise GA" milestone (item 3 of 8).
 - 5 new unit tests in `agc-core::sentinel` (rule count/shape, custom table name substitution, a schema-column validator that tokenizes every query and rejects any column-like identifier not in `azure_setup.sh`'s actual custom table schema, ARM resource shape, raw KQL passthrough), plus a real end-to-end CLI smoke test (both formats actually written to disk and inspected: real KQL text, valid parseable ARM JSON with all 4 resources well-formed, the `--format` error path, and the custom-table-name path).
 
 ### Known limitation
+- Correct against the exact column names `azure_setup.sh`'s custom table declares, but not verified against a live Sentinel workspace (none was available while building this), same disclosed-limitation pattern as the rest of this portfolio's Azure integrations.
 - Correct against the exact column names `azure_setup.sh`'s custom table declares, but not verified against a live Sentinel workspace (none was available while building this): the same disclosed-limitation pattern as the rest of this portfolio's Azure integrations.
 
 ## [0.7.0] - 2026-07-18
@@ -151,6 +152,8 @@ milestone has 8 items total, this ships the first one; v1.0.0 itself is
 only declared once all of them land.
 
 ### Added
+- `X-Tenant-Id` header (required on every trace/audit endpoint, `400` if missing or empty; no silent "default tenant" fallback that would pool everyone's data together) resolves an isolated `TraceStore`+`AuditLog` pair per tenant, created lazily on that tenant's first request.
+- `AGC_AUDIT_DB_DIR` (replaces `AGC_AUDIT_DB_PATH`): with it set, each tenant's audit log persists to its own `{tenant_id}.sqlite` file, genuine storage-level isolation, verified by inspecting the files on disk in a real end-to-end test, not just a filtered view over one shared store.
 - `X-Tenant-Id` header (required on every trace/audit endpoint, `400` if missing or empty, with no silent "default tenant" fallback that would pool everyone's data together) resolves an isolated `TraceStore`+`AuditLog` pair per tenant, created lazily on that tenant's first request.
 - `AGC_AUDIT_DB_DIR` (replaces `AGC_AUDIT_DB_PATH`): with it set, each tenant's audit log persists to its own `{tenant_id}.sqlite` file: genuine storage-level isolation, verified by inspecting the files on disk in a real end-to-end test, not just a filtered view over one shared store.
 - `GET /api/v1/tenants`: lists every tenant ID seen so far (sorted).
@@ -173,6 +176,7 @@ the version to 0.4.0).
 - `GovernancePolicy::from_yaml`/`to_yaml` (`agc-core`, via the `serde_norway` crate): parses YAML policy documents; since YAML 1.2 is a JSON superset, the same parser also accepts the existing JSON format unchanged.
 - `PolicyEngine::load_policies_from_dir`: loads every `*.yaml`/`*.yml`/`*.json` file in a directory (non-recursive, sorted), replacing the full policy set atomically. A parse error in any file aborts that reload and leaves the previous policy set untouched, so one bad edit can't silently wipe a working configuration.
 - `AGC_POLICY_DIR` env var (`agc-api`): loads policies from a directory at startup and hot-reloads on every filesystem change, via a new `agc_api::spawn_policy_hot_reload` using the `notify` crate.
+- `GovernancePolicy::to_rego_stub`: renders a structural Open Policy Agent (Rego) module, one `deny`/`warn`/`alert` partial rule per policy rule. Explicitly a hand-porting starting point, not a full semantic translation of AGC's condition model (see `docs/policy_dsl.md` for exactly what's approximate, e.g. `span_level_at_least` becomes a string equality check, not a real severity-order comparison).
 - `GovernancePolicy::to_rego_stub`: renders a structural Open Policy Agent (Rego) module, with one `deny`/`warn`/`alert` partial rule per policy rule. Explicitly a hand-porting starting point, not a full semantic translation of AGC's condition model (see `docs/policy_dsl.md` for exactly what's approximate, e.g. `span_level_at_least` becomes a string equality check, not a real severity-order comparison).
 - `agc-cli policy validate <file>`: parses a policy file and reports whether it's valid, without needing a running server.
 - `agc-cli policy to-rego <file>`: prints the Rego stub for a policy file.

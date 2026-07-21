@@ -43,6 +43,11 @@ AGC is a Rust workspace with four crates. The `agc-core` library contains all do
 - `TraceStore`: sorted in-memory store; query by trace ID, filter errors
 
 ### `policy`
+- `GovernancePolicy`: named policy with agent scope and rule list; `from_yaml`/`to_yaml` (YAML or JSON, one parser, since YAML 1.2 is a JSON superset) and `to_rego_stub` (structural OPA export, see `docs/policy_dsl.md`)
+- `PolicyRule`: condition + action pair
+- `PolicyCondition`: `SpanLevelAtLeast`, `TokenBudgetExceeded`, `OperationMatches`
+- `PolicyAction`: `Warn`, `Block`, `Alert`
+- `PolicyEngine`: load policies (single, or `load_policies_from_dir` for a whole directory; a failed parse leaves the previous policy set untouched), resolve applicable rules per agent/operation
 - `GovernancePolicy`: named policy with agent scope and rule list; `from_yaml`/`to_yaml` (YAML or JSON, one parser since YAML 1.2 is a JSON superset) and `to_rego_stub` (structural OPA export, see `docs/policy_dsl.md`)
 - `PolicyRule`: condition + action pair
 - `PolicyCondition`: `SpanLevelAtLeast`, `TokenBudgetExceeded`, `OperationMatches`
@@ -180,6 +185,7 @@ agc-cli policy validate (offline, doesn't touch a running engine) ──┘
 watcher (`agc_api::spawn_policy_hot_reload`): its callback runs on its
 own OS thread outside the Tokio runtime, so it only sends a signal over
 a channel to a dedicated async task that does the actual (async-locked)
+reload, the same "sync callback, async reload" split as the OTLP batch
 reload: the same "sync callback, async reload" split as the OTLP batch
 processor above avoids the same class of deadlock. A parse error during
 a directory reload aborts that reload and keeps the previous policy set,

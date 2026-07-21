@@ -23,6 +23,7 @@ impl OtlpExporter {
     /// tagged with `service_name`. `endpoint` must be the full traces
     /// endpoint URL, including the `/v1/traces` path (e.g.
     /// `https://<region>.otelcollector.azure.com/v1/traces`, exactly as
+    /// `docs/azure_integration.md` documents it): a programmatically set
     /// `docs/azure_integration.md` documents it). A programmatically set
     /// endpoint is used verbatim, not treated as a base URL to append to.
     ///

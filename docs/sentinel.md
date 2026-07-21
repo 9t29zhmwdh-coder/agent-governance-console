@@ -21,6 +21,7 @@ table declares (`id`, `timestamp`, `agent_id`, `action`, `outcome`,
 `policy_id`, `details`, plus Log Analytics' own `TimeGenerated`); a
 dedicated test tokenizes every query and rejects any column-like
 identifier not in that real schema. **Not verified against a live
+Sentinel workspace** (none was available while building this), same
 Sentinel workspace** (none was available while building this), the same
 disclosed-limitation pattern as the rest of this portfolio's Azure
 integrations, see `docs/azure_integration.md`.
