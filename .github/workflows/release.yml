@@ -1,0 +1,98 @@
+# Baut die CLI fuer die drei Zielplattformen und haengt sie an ein GitHub
+# Release, sobald ein Versions-Tag gepusht wird.
+#
+# Ohne diesen Workflow entsteht beim Tag-Push nichts: der Tag liegt im Repo,
+# ein Release gibt es nie. Genau so sind hier Versionen ohne Release
+# liegengeblieben, sichtbar erst beim Vergleich von Tag- und Release-Liste.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            bin: agc-cli
+            asset: agc-cli-linux
+          - os: macos-latest
+            bin: agc-cli
+            asset: agc-cli-macos
+          - os: windows-latest
+            bin: agc-cli.exe
+            asset: agc-cli-windows.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable branch, pinned 2026-07-29
+
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+
+      - name: Build release binary
+        run: cargo build --release --bin agc-cli
+
+      - name: Prepare asset
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/${{ matrix.bin }} dist/${{ matrix.asset }}
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      # Nur was ueber das workflow-weite contents: read hinausgeht. Read-Rechte
+      # hier zu wiederholen ist das, was OpenSSF Scorecard als zu weite
+      # Token-Berechtigung bemaengelt.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+
+      - name: Flatten artifact layout
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          chmod +x release/agc-cli-linux release/agc-cli-macos
+
+      - name: Extract the changelog section for this tag
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v marker="## [$version]" '
+            index($0, marker) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found && !/^---$/ { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "no changelog section found for $version" >&2
+            exit 1
+          fi
+          printf '\nNot code-signed: OS security prompts (Gatekeeper/SmartScreen) may warn on first run. Run `chmod +x` on macOS and Linux before executing.\n' >> notes.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "agent-governance-console ${GITHUB_REF_NAME}" \
+            --notes-file notes.md
