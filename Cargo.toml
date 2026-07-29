@@ -3,7 +3,7 @@ members = ["agc-core", "agc-api", "agc-cli", "agc-azure"]
 resolver = "2"
 
 [workspace.package]
-version = "1.0.6"
+version = "1.0.7"
 edition = "2021"
 license = "MIT"
 authors = ["Rafael Yilmaz"]
@@ -22,7 +22,7 @@ tower-http   = { version = "0.5", features = ["cors", "trace"] }
 tracing      = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rusqlite     = { version = "0.31", features = ["bundled"] }
-reqwest      = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest      = { version = "0.13", features = ["json", "query", "rustls"], default-features = false }
 clap         = { version = "4", features = ["derive"] }
 serde_norway = "0.9"
 notify       = "8"
