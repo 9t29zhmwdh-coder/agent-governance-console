@@ -8,9 +8,31 @@
 
 [🇬🇧 English Version](README.md)
 
-**Governance, Tracing, Policy Enforcement und Observability für agentische Workflows.**
+**Beantwortet "was hat der Agent da eigentlich gemacht, und durfte er das" mit einem Nachweis statt einer Vermutung.**
 
-Ein Rust-Workspace für Tracing, Policy Enforcement und Audit-Logging von AI-Agent-Aktivität, mit echtem Azure-Monitor-Telemetrie-/Audit-Export, Microsoft-Graph-Integration und Microsoft-Sentinel-Analytics-Rule-Export.
+Ein Agent im Produktivbetrieb handelt selbstständig. Irgendwann fragt jemand
+mit Prüfauftrag, welches Tool er aufgerufen hat, in wessen Auftrag, und wer
+festgelegt hat, dass das zulässig ist. Prompt-Logs beantworten das nicht: sie
+zeigen, was gesagt wurde, nicht was getan wurde, und als Audit-Trail akzeptiert
+sie niemand.
+
+AGC nimmt Spans von deinen Agenten entgegen, prüft jeden gegen Policies, die du
+schreibst, und legt die Entscheidungen in einer abfragbaren Audit-Tabelle ab.
+
+```
+POST /api/v1/traces              dein Agent meldet, was er getan hat
+POST /api/v1/policies            die Regeln, an denen er gemessen wird
+GET  /api/v1/audit/export.csv    der Nachweis, für wen auch immer fragt
+GET  /api/v1/compliance/report   dasselbe, ausgerichtet an Responsible AI
+```
+
+Die Audit-Tabelle exportiert nach Azure Monitor, und `agc-cli sentinel`
+schreibt dazu passende Microsoft-Sentinel-Analytics-Rule-Templates.
+
+**Nichts für dich, wenn** du sehen willst, warum ein einzelner Agent-Lauf
+schiefging. Das ist eine Tracing-Frage, und LangSmith oder schlichtes
+OpenTelemetry beantworten sie besser. Hier geht es um den Fall, dass jemand von
+aussen den Nachweis braucht.
 
 Ausgerichtet an den [Microsoft Responsible AI Grundsätzen](https://learn.microsoft.com/de-de/azure/machine-learning/concept-responsible-ai) und konzipiert für Enterprise KI-Governance-Teams in regulierten Microsoft-Cloud-Umgebungen.
 
