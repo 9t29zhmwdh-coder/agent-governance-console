@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.8] - 2026-07-31
+
+### Changed
+
+- Both READMEs now open with the question AGC exists to answer, which is what an agent did and whether it was allowed to, rather than with the four capability nouns it is built from. The four endpoints that carry the tool are shown directly, and a short paragraph sends people debugging a single agent run to LangSmith or plain OpenTelemetry instead.
+
+---
+
 ## [1.0.7] - 2026-07-29
 
 ### Changed

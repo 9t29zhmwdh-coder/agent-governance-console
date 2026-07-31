@@ -8,9 +8,29 @@
 
 [🇩🇪 Deutsche Version](README.de.md)
 
-**Governance, tracing, policy enforcement and observability for agentic workflows.**
+**Answers "what did that agent actually do, and was it allowed to" with a record instead of a guess.**
 
-A Rust workspace for tracing, policy enforcement and audit logging of AI agent activity, with real Azure Monitor telemetry/audit export, Microsoft Graph integration, and Microsoft Sentinel analytics rule export.
+An agent in production takes actions on its own. Sooner or later someone with
+an audit mandate asks which tool it called, on whose behalf, and who signed off
+on that being permissible. Prompt logs do not answer this: they show what was
+said, not what was done, and they are not an audit trail anyone will accept.
+
+AGC takes spans from your agents, checks each against policies you write, and
+keeps the decisions in a queryable audit table.
+
+```
+POST /api/v1/traces              your agent reports what it did
+POST /api/v1/policies            the rules it is judged against
+GET  /api/v1/audit/export.csv    the record, for whoever asks
+GET  /api/v1/compliance/report   the same, aligned to Responsible AI
+```
+
+The audit table exports to Azure Monitor, and `agc-cli sentinel` writes
+Microsoft Sentinel analytics rule templates over it.
+
+**Not for you if** you want to see why a single agent run went wrong. That is a
+tracing question and LangSmith or plain OpenTelemetry answer it better. This is
+built for the case where someone external needs the evidence.
 
 Aligned with [Microsoft's Responsible AI principles](https://learn.microsoft.com/en-us/azure/machine-learning/concept-responsible-ai) and designed for enterprise AI governance teams operating in regulated Microsoft cloud environments.
 
