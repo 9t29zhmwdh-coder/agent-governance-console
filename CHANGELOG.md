@@ -5,6 +5,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.0] - 2026-08-04
+
+### Changed
+
+- `axum` 0.7 to 0.8. Two changes were needed. `FromRequestParts` no longer needs `#[async_trait]`, which is a compile error and cannot be missed. The path parameter syntax changed from `:trace_id` to `{trace_id}`, which compiles cleanly and panics when the router is built, so every one of the thirty integration tests failed at the same line until it was fixed.
+- `tower-http` 0.5 to 0.7. Only the cors and trace layers are used and neither changed shape.
+- `jsonwebtoken` 10.3 to 11. No source change was needed; the `rust_crypto` and `use_pem` features still exist and the crypto still comes from RustCrypto. What carries it are the eleven tests over the authentication path, which pass unchanged, including a real RS256 token verified against a mock JWKS server and a token with the wrong audience being rejected.
+- `thiserror` 1 to 2. The error strings are unchanged, held by new tests.
+
+### Added
+
+- Tests that hold the `AzureError` and `PolicyError` messages. Those strings go into logs and API responses, so they are visible from outside the process.
+
+### Notes
+
+- `rand` stays at 0.8. It exists here for one line, giving `rsa` 0.9 a random source when a test generates an RSA keypair, and `rsa` 0.9 expects `CryptoRngCore` from `rand_core` 0.6. Under `rand` 0.10 the test no longer compiles, and an `rsa` release that would resolve it exists only as a release candidate. The reason now sits next to the declaration.
+
+---
+
 ## [1.0.10] - 2026-08-04
 
 ### Fixed
