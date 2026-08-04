@@ -92,7 +92,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" release/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "agent-governance-console ${GITHUB_REF_NAME}" \
-            --notes-file notes.md
+          # Legt das Release an, oder haengt die Dateien an ein bestehendes.
+          #
+          # Vorher brach der Schritt mit "a release with the same tag name already
+          # exists" ab, sobald das Release schon auf anderem Weg entstanden war. Das
+          # Ergebnis war ein Release ohne Downloads und ein roter Lauf, obwohl der
+          # Build erfolgreich war.
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" release/* --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" release/* --repo "${GITHUB_REPOSITORY}" --title "agent-governance-console ${GITHUB_REF_NAME}" --notes-file notes.md
+          fi
