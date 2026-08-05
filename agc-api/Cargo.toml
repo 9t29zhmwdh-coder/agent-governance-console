@@ -32,7 +32,7 @@ jsonwebtoken = { version = "11.0", default-features = false, features = ["rust_c
 
 [dev-dependencies]
 tokio    = { version = "1", features = ["full"] }
-tower    = { version = "0.4", features = ["util"] }
+tower    = { version = "0.5", features = ["util"] }
 serde_json = "1"
 wiremock = "0.6"
 rsa      = "0.9"
@@ -40,6 +40,7 @@ rsa      = "0.9"
 # `rsa` 0.9 im Test einen Zufallsgenerator zu geben, und `rsa` 0.9 erwartet
 # `CryptoRngCore` aus `rand_core` 0.6. Unter `rand` 0.10 implementiert
 # `ThreadRng` die Traits von `rand_core` 0.9, und der Test uebersetzt nicht
-# mehr. Ein passendes `rsa` gibt es bisher nur als Release Candidate.
+# mehr. Dasselbe gilt bereits fuer `rand` 0.9, gemessen und nicht vermutet.
+# Ein passendes `rsa` gibt es bisher nur als Release Candidate.
 rand     = "0.8"
-base64   = "0.22"
+base64   = "0.23"

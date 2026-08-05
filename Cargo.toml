@@ -3,7 +3,7 @@ members = ["agc-core", "agc-api", "agc-cli", "agc-azure"]
 resolver = "2"
 
 [workspace.package]
-version = "1.1.1"
+version = "1.2.0"
 edition = "2021"
 license = "MIT"
 authors = ["Rafael Yilmaz"]
@@ -17,11 +17,11 @@ uuid         = { version = "1", features = ["v4", "serde"] }
 chrono       = { version = "0.4", features = ["serde"] }
 tokio        = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 axum         = { version = "0.8", features = ["json"] }
-tower        = "0.4"
+tower        = "0.5"
 tower-http   = { version = "0.7", features = ["cors", "trace"] }
 tracing      = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-rusqlite     = { version = "0.31", features = ["bundled"] }
+rusqlite     = { version = "0.40", features = ["bundled"] }
 reqwest      = { version = "0.13", features = ["json", "query", "rustls"], default-features = false }
 clap         = { version = "4", features = ["derive"] }
 serde_norway = "0.9"

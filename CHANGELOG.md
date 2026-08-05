@@ -5,6 +5,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.0] - 2026-08-05
+
+### Changed
+
+- `rusqlite` 0.31 to 0.40, nine minor versions across seventeen call sites. No source change was needed, and the claim rests on the thirty integration tests that drive the API against a real tenant store rather than on the clean build. `libsqlite3-sys` moves to 0.38.1 with it.
+- `tower` 0.4 to 0.5 and `base64` 0.22 to 0.23, one call site each. `base64` now appears twice in the tree: this crate's dev-dependency on 0.23.1, and 0.22.1 below `hyper-util` below `axum`, which is not ours to raise.
+
+### Fixed
+
+- The `rand` ignore entry added in 1.1.1 covered versions from 0.10 up, on the assumption that 0.9 was still reachable. It is not: `rand` 0.9 already sits on `rand_core` 0.9 and fails exactly as 0.10 does. Measured after Dependabot proposed it. The bound is now `>= 0.9`, so only 0.8.x stays reachable, and the comment next to the declaration says so too.
+
+---
+
 ## [1.1.1] - 2026-08-05
 
 ### Changed
