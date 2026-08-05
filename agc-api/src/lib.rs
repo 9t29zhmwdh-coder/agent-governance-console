@@ -182,7 +182,8 @@ impl Default for AppState {
 /// silently pooling everyone's data together.
 pub struct TenantId(pub String);
 
-#[axum::async_trait]
+// axum 0.8 braucht kein #[async_trait] mehr: FromRequestParts nutzt jetzt
+// async fn im Trait, das Rust seit 1.75 selbst kann.
 impl<S> FromRequestParts<S> for TenantId
 where
     S: Send + Sync,
@@ -261,7 +262,7 @@ pub fn create_router(state: AppState) -> Router {
             }),
         )
         .route(
-            "/api/v1/traces/:trace_id",
+            "/api/v1/traces/{trace_id}",
             get({
                 let s = state.clone();
                 move |TenantId(tenant_id): TenantId, headers: HeaderMap, Path(trace_id): Path<Uuid>| async move {

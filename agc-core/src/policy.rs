@@ -569,3 +569,27 @@ rules:
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
+
+#[cfg(test)]
+mod fehlertext_tests {
+    use super::*;
+
+    /// Auch diese Meldungen sind nach aussen sichtbar: sie erklaeren, warum
+    /// ein Richtliniendokument abgelehnt wurde.
+    #[test]
+    fn fehlertexte_bleiben_wie_sie_sind() {
+        let kaputt: serde_norway::Error =
+            serde_norway::from_str::<GovernancePolicy>("policy_id: [unclosed").unwrap_err();
+        let ungueltig = PolicyError::Parse(kaputt);
+        assert!(
+            ungueltig.to_string().starts_with("invalid policy document: "),
+            "unerwartet: {ungueltig}"
+        );
+
+        let io = PolicyError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "kein Verzeichnis",
+        ));
+        assert_eq!(io.to_string(), "reading policy directory: kein Verzeichnis");
+    }
+}
