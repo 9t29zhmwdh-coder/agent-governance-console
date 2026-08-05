@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.1] - 2026-08-05
+
+### Changed
+
+- Dependabot no longer proposes `rand` 0.10, which cannot be taken here: `rand` exists for one line, giving `rsa` 0.9 a random source in a test, and `rsa` 0.9 expects `CryptoRngCore` from `rand_core` 0.6. Only the unreachable versions from 0.10 up are ignored, so a 0.8.x or 0.9.x release would still be proposed. Remove the entry once `rsa` 0.10 is stable.
+
+---
+
 ## [1.1.0] - 2026-08-04
 
 ### Changed

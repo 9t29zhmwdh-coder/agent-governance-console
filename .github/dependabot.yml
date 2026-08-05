@@ -20,3 +20,25 @@ updates:
       cargo:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # rand exists here for one line: giving rsa 0.9 a random source when a
+      # test generates an RSA keypair, so that a real RS256 token can be
+      # verified against a mock JWKS server.
+      #
+      # rsa 0.9 expects CryptoRngCore from rand_core 0.6. Under rand 0.10,
+      # ThreadRng implements the rand_core 0.9 traits instead and the test
+      # stops compiling:
+      #
+      #   the trait bound `ThreadRng: CryptoRngCore` is not satisfied
+      #
+      # An rsa release that would resolve this exists only as 0.10.0-rc, and
+      # pulling a release candidate into a governance console to satisfy a
+      # version number in a test is the wrong trade. Proposed once and closed
+      # in #51 before this entry was added.
+      #
+      # Only the unreachable versions are ignored. A 0.8.x or 0.9.x release
+      # would still be proposed. Remove this block once rsa 0.10 is stable,
+      # which is the condition recorded next to the declaration in
+      # agc-api/Cargo.toml.
+      - dependency-name: "rand"
+        versions: [">= 0.10"]
