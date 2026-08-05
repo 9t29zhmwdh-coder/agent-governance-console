@@ -42,4 +42,4 @@ rsa      = "0.9"
 # `ThreadRng` die Traits von `rand_core` 0.9, und der Test uebersetzt nicht
 # mehr. Ein passendes `rsa` gibt es bisher nur als Release Candidate.
 rand     = "0.8"
-base64   = "0.22"
+base64   = "0.23"
