@@ -36,9 +36,11 @@ updates:
       # version number in a test is the wrong trade. Proposed once and closed
       # in #51 before this entry was added.
       #
-      # Only the unreachable versions are ignored. A 0.8.x or 0.9.x release
-      # would still be proposed. Remove this block once rsa 0.10 is stable,
-      # which is the condition recorded next to the declaration in
-      # agc-api/Cargo.toml.
+      # The bound was >= 0.10 at first, which was too narrow: rand 0.9 already
+      # sits on rand_core 0.9 and fails identically, measured rather than
+      # assumed after Dependabot proposed it as #61. Only 0.8.x remains
+      # reachable, so a patch or minor release inside 0.8 would still be
+      # proposed. Remove this block once rsa 0.10 is stable, which is the
+      # condition recorded next to the declaration in agc-api/Cargo.toml.
       - dependency-name: "rand"
-        versions: [">= 0.10"]
+        versions: [">= 0.9"]
