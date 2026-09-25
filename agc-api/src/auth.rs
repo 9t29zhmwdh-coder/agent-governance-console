@@ -171,8 +171,10 @@ fn forbidden(min_role: Role) -> Response {
 
 /// Extracts and validates the bearer token from `headers`, then checks
 /// the resulting role is at least `min_role`. Returns `Ok(())` to let the
-/// handler continue, or the `401`/`403` response to return immediately.
-pub async fn authorize(auth: &AuthConfig, headers: &HeaderMap, min_role: Role) -> Result<(), Response> {
+/// handler continue, or the `401`/`403` response to return immediately
+/// (boxed: a `Response` is large, and every successful call pays for the
+/// size of the error variant).
+pub async fn authorize(auth: &AuthConfig, headers: &HeaderMap, min_role: Role) -> Result<(), Box<Response>> {
     if matches!(auth, AuthConfig::Disabled) {
         return Ok(());
     }
@@ -180,11 +182,11 @@ pub async fn authorize(auth: &AuthConfig, headers: &HeaderMap, min_role: Role) -
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| unauthorized("missing or malformed Authorization: Bearer <token> header"))?;
+        .ok_or_else(|| Box::new(unauthorized("missing or malformed Authorization: Bearer <token> header")))?;
 
-    let role = auth.validate(token).await.map_err(unauthorized)?;
+    let role = auth.validate(token).await.map_err(|e| Box::new(unauthorized(e)))?;
     if role < min_role {
-        return Err(forbidden(min_role));
+        return Err(Box::new(forbidden(min_role)));
     }
     Ok(())
 }
