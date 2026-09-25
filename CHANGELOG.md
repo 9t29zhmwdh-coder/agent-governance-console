@@ -5,6 +5,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.0] - 2026-09-25
+
+### Fixed
+
+- **Allowed actions were missing from the audit log.** Only spans that matched a policy rule left an audit record; an ordinary accepted span existed only in the in-memory trace store, which is empty after a restart. The audit log, the record an auditor exports, therefore answered "what was blocked", not "what did the agent do". Every accepted span without a matching rule is now recorded as `allowed`. The compliance report, which already counted allowed decisions, shows real numbers instead of 0.
+- **`agc-cli bench ingest` reported "SLA MET" when every request failed** (no server running: 0 successful, 10000 errors, p99 0 ms). It now fails unless all requests succeed. Measured again with a running server: p99 0.57 ms with the in-memory audit, 1.36 ms with the audit in a file, at 1000 spans per second.
+- With RBAC enabled, a write request without a token got 422 and schema details when its body was invalid, because the body was parsed before authorization. It now gets 401.
+
+### Changed
+
+- README: seven feature rows were listed twice; trace and audit rows say what survives a restart.
+- Helm chart `appVersion` 1.0.1 to 1.3.0 (it had not followed 1.1 and 1.2), chart version 0.1.1.
+
+---
+
 ## [1.2.0] - 2026-08-05
 
 ### Changed

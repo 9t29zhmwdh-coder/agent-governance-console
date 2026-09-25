@@ -2,8 +2,8 @@ apiVersion: v2
 name: agent-governance-console
 description: Governance, tracing, policy enforcement and observability for agentic workflows
 type: application
-version: 0.1.0
-appVersion: "1.0.1"
+version: 0.1.1
+appVersion: "1.3.0"
 home: https://github.com/9t29zhmwdh-coder/agent-governance-console
 sources:
   - https://github.com/9t29zhmwdh-coder/agent-governance-console
