@@ -275,6 +275,16 @@ async fn run_bench_command(action: BenchCommand) -> Result<(), BoxError> {
             println!("  max: {:.2}ms", report.max_us as f64 / 1000.0);
 
             const SLA_P99_MS: f64 = 10.0;
+            // Latency of failed requests is not measured, so with every request
+            // failing (no server running) p99 was 0 ms and the SLA was "met".
+            if report.count == 0 || report.errors > 0 {
+                eprintln!(
+                    "SLA NOT MET: {} of {} request(s) failed; a latency figure is only meaningful when all succeed",
+                    report.errors,
+                    report.count as u64 + report.errors
+                );
+                std::process::exit(1);
+            }
             if report.p99_ms() >= SLA_P99_MS {
                 eprintln!("SLA NOT MET: p99 {:.2}ms >= {SLA_P99_MS}ms target", report.p99_ms());
                 std::process::exit(1);

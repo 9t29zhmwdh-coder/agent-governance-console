@@ -60,8 +60,8 @@ Agent Governance Console (AGC) is a v1.0.0 Rust workspace (`agc-core`, `agc-api`
 
 | Feature | Status |
 |---------|--------|
-| **Trace model** (`TraceSpan`, `TraceStore`) | Available: in-memory store, sorted ingestion, tested |
-| **Audit model** (`AuditRecord`, `AuditLog`) | Available: SQLite-backed (in-memory by default, or a real per-tenant file via `AGC_AUDIT_DB_DIR`), NDJSON/CSV export, paginated query, tested and exposed via API |
+| **Trace model** (`TraceSpan`, `TraceStore`) | Available: in-memory store (empty after a restart; the audit log is the durable record), sorted ingestion, tested |
+| **Audit model** (`AuditRecord`, `AuditLog`) | Available: every accepted span is recorded (`allowed`, or `warned`/`alerted` per matched rule), every rejected one as `blocked`. SQLite-backed: in memory by default, which is lost on restart; set `AGC_AUDIT_DB_DIR` for a persistent per-tenant file, which is what an audit needs. NDJSON/CSV export, paginated query, tested and exposed via API |
 | **Multi-tenant isolation** | Available: `X-Tenant-Id` header (required, no silent default) resolves an isolated trace+audit store per tenant, created lazily; `GET /api/v1/tenants` lists tenants seen so far. Policies stay global/shared. |
 | **Policy model** (`GovernancePolicy`, `PolicyRule`) | Available: real condition evaluation (span level, token budget, operation glob), not just a data model |
 | **Trace ingestion via API** | Available: `POST /api/v1/traces`, `GET /api/v1/traces/{trace_id}` |
@@ -80,13 +80,6 @@ Agent Governance Console (AGC) is a v1.0.0 Rust workspace (`agc-core`, `agc-api`
 | **Dashboard UI** | Available: `GET /dashboard`, a self-contained static page (no build step) covering health, tenants, policies, per-tenant traces, a paginated audit table, and the compliance report (see [docs/dashboard.md](docs/dashboard.md)) |
 | **Kubernetes deployment (Helm chart)** | Available: `helm/agent-governance-console`, plus a root `Dockerfile`: Deployment, Service, optional Ingress/HPA/PVC/policy-ConfigMap, both RBAC modes, Azure Workload Identity (see [docs/helm.md](docs/helm.md)) |
 | **Ingest SLA (p99 < 10ms at 1K spans/s)** | Verified: `agc-cli bench ingest`, measured p99 well under 1ms at the target rate, holding at 2x rate and under a realistic worst case (see [docs/performance.md](docs/performance.md)) |
-| **OPA/Rego export** | Available: `agc-cli policy to-rego` renders a structural Rego stub per policy: a hand-porting starting point, not a full semantic translation |
-| **RBAC for REST API** | Available: `AGC_JWT_SECRET` (HS256) or `AGC_AAD_TENANT_ID` (Entra ID RS256) gates writes to `Admin`, reads need `Viewer`; opt-in, off by default |
-| **Microsoft Sentinel export** | Available: `agc-cli sentinel export --format kql\|arm` generates 4 built-in analytics rule templates from AGC's audit table, as KQL files or a deployable ARM template, see [docs/sentinel.md](docs/sentinel.md) |
-| **Compliance report export** | Available: `GET /api/v1/compliance/report` (Markdown or `?format=json`), reporting against 4 of Microsoft's 6 Responsible AI principles from real tenant audit/trace data, see [docs/compliance.md](docs/compliance.md) |
-| **Dashboard UI** | Available: `GET /dashboard`, a self-contained static page (no build step) covering health, tenants, policies, per-tenant traces, a paginated audit table, and the compliance report, see [docs/dashboard.md](docs/dashboard.md) |
-| **Kubernetes deployment (Helm chart)** | Available: `helm/agent-governance-console`, plus a root `Dockerfile` (Deployment, Service, optional Ingress/HPA/PVC/policy-ConfigMap, both RBAC modes, Azure Workload Identity), see [docs/helm.md](docs/helm.md) |
-| **Ingest SLA (p99 < 10ms at 1K spans/s)** | Verified: `agc-cli bench ingest`, measured p99 well under 1ms at the target rate, holding at 2x rate and under a realistic worst case, see [docs/performance.md](docs/performance.md) |
 
 Full current vs. planned endpoint list: [docs/api_reference.md](docs/api_reference.md).
 

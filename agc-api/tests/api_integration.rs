@@ -759,3 +759,36 @@ async fn dashboard_serves_real_html_that_calls_every_rest_endpoint_it_needs() {
         assert!(html.contains(endpoint), "dashboard JS should call {endpoint}");
     }
 }
+
+/// A span no policy matched is still part of the record: the audit log is what
+/// an auditor exports, and the trace store is empty after a restart.
+#[tokio::test]
+async fn span_without_matching_policy_is_audited_as_allowed() {
+    let app_router = app().await;
+    let response = post_tenant_json(
+        app_router.clone(),
+        "/api/v1/traces",
+        TENANT,
+        span_json("agent-1", "info", "tool_call", json!({})),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let audit = body_json(get_tenant(app_router, "/api/v1/audit", TENANT).await).await;
+    let records = audit["records"].as_array().or_else(|| audit.as_array()).expect("audit records");
+    assert_eq!(records.len(), 1, "{audit}");
+    assert_eq!(records[0]["outcome"], "allowed");
+    assert_eq!(records[0]["action"], "tool_call");
+}
+
+/// Authorization comes before the body is read: an unauthenticated caller
+/// gets 401, not 422 with details about the expected schema.
+#[tokio::test]
+async fn rbac_rejects_an_invalid_body_with_401_before_validating_it() {
+    let mut state = AppState::new();
+    state.auth = agc_api::AuthConfig::hmac("s3cret");
+    let app_router = create_router(state);
+
+    let response = post_tenant_json_authed(app_router, "/api/v1/traces", TENANT, None, json!({"not": "a span"})).await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}

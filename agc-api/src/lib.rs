@@ -253,10 +253,14 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/traces",
             post({
                 let s = state.clone();
-                move |TenantId(tenant_id): TenantId, headers: HeaderMap, Json(span): Json<TraceSpan>| async move {
+                move |TenantId(tenant_id): TenantId, headers: HeaderMap, body: axum::body::Bytes| async move {
                     if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Admin).await {
                         return resp;
                     }
+                    let span: TraceSpan = match parse_json(&body) {
+                        Ok(span) => span,
+                        Err(e) => return invalid_body(e),
+                    };
                     ingest_trace(s, tenant_id, span).await
                 }
             }),
@@ -350,14 +354,33 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/policies",
             post({
                 let s = state.clone();
-                move |headers: HeaderMap, Json(policy): Json<GovernancePolicy>| async move {
+                move |headers: HeaderMap, body: axum::body::Bytes| async move {
                     if let Err(resp) = auth::authorize(&s.auth, &headers, Role::Admin).await {
                         return resp;
                     }
+                    let policy: GovernancePolicy = match parse_json(&body) {
+                        Ok(policy) => policy,
+                        Err(e) => return invalid_body(e),
+                    };
                     load_policy(s, policy).await
                 }
             }),
         )
+}
+
+/// Parses a request body after authorization. With `Json<T>` as an extractor
+/// the body was validated first, so an unauthenticated caller got 422 with
+/// schema details instead of 401.
+fn parse_json<T: serde::de::DeserializeOwned>(body: &[u8]) -> Result<T, serde_json::Error> {
+    serde_json::from_slice(body)
+}
+
+fn invalid_body(e: serde_json::Error) -> Response {
+    (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        Json(serde_json::json!({"error": "invalid_body", "reason": e.to_string()})),
+    )
+        .into_response()
 }
 
 pub fn default_config() -> ConsoleConfig {
@@ -388,7 +411,8 @@ async fn audit_count(state: AppState, tenant_id: String) -> Response {
 
 /// Real-time policy gate: evaluates every in-scope policy rule (global,
 /// shared across tenants) against the incoming span, records one audit
-/// entry per matched rule in `tenant_id`'s isolated audit log, and rejects
+/// entry per matched rule (or one `allowed` entry when no rule matched) in
+/// `tenant_id`'s isolated audit log, and rejects
 /// the span with 403 if any matched rule's action is `Block`. A blocked
 /// span is never written to that tenant's trace store.
 async fn ingest_trace(state: AppState, tenant_id: String, span: TraceSpan) -> Response {
@@ -428,6 +452,21 @@ async fn ingest_trace(state: AppState, tenant_id: String, span: TraceSpan) -> Re
                     block = Some((rule.rule_id.clone(), reason.clone()));
                 }
             }
+        }
+        // A span no rule matched used to leave no audit record at all; only the
+        // in-memory trace store knew about it, and that is empty after a
+        // restart. The audit log is the record an auditor gets, so it holds
+        // every accepted action, not only the ones a policy flagged.
+        if matches.is_empty() {
+            audit.append(AuditRecord {
+                id: Uuid::new_v4(),
+                timestamp: Utc::now(),
+                agent_id: span.agent_id.clone(),
+                action: span.operation.clone(),
+                outcome: AuditOutcome::Allowed,
+                policy_id: None,
+                details: serde_json::json!({ "span_id": span.span_id }),
+            });
         }
     }
 

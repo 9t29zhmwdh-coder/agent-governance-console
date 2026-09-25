@@ -61,8 +61,8 @@ Agent Governance Console (AGC) ist ein Rust-Workspace (`agc-core`, `agc-api`, `a
 
 | Funktion | Status |
 |----------|--------|
-| **Trace-Modell** (`TraceSpan`, `TraceStore`) | Verfügbar: In-Memory-Store, sortierte Ingestion, getestet |
-| **Audit-Modell** (`AuditRecord`, `AuditLog`) | Verfügbar: SQLite-basiert (standardmässig im Speicher, oder persistent pro Tenant über `AGC_AUDIT_DB_DIR`), NDJSON-/CSV-Export, paginierte Abfrage, getestet und über API erreichbar |
+| **Trace-Modell** (`TraceSpan`, `TraceStore`) | Verfügbar: In-Memory-Store (nach einem Neustart leer; das Audit ist der dauerhafte Nachweis), sortierte Ingestion, getestet |
+| **Audit-Modell** (`AuditRecord`, `AuditLog`) | Verfügbar: jeder angenommene Span wird erfasst (`allowed`, oder `warned`/`alerted` pro zutreffender Regel), jeder abgewiesene als `blocked`. SQLite-basiert: standardmässig im Speicher, nach einem Neustart weg; mit `AGC_AUDIT_DB_DIR` eine dauerhafte Datei pro Tenant, und genau die braucht ein Audit. NDJSON-/CSV-Export, paginierte Abfrage, getestet und über die API erreichbar |
 | **Multi-Tenant-Isolation** | Verfügbar: `X-Tenant-Id`-Header (Pflicht, kein stiller Default) löst pro Tenant einen isolierten Trace+Audit-Store auf, lazy erzeugt; `GET /api/v1/tenants` listet bisher gesehene Tenants. Policies bleiben global/geteilt. |
 | **Policy-Modell** (`GovernancePolicy`, `PolicyRule`) | Verfügbar: echte Bedingungsauswertung (Span-Level, Token-Budget, Operation-Glob), kein reines Datenmodell mehr |
 | **Trace-Ingestion via API** | Verfügbar: `POST /api/v1/traces`, `GET /api/v1/traces/{trace_id}` |
@@ -81,13 +81,6 @@ Agent Governance Console (AGC) ist ein Rust-Workspace (`agc-core`, `agc-api`, `a
 | **Dashboard-UI** | Verfügbar: `GET /dashboard`, eine eigenständige statische Seite (kein Build-Schritt) mit Health, Tenants, Policies, Tenant-Traces, paginierter Audit-Tabelle und Compliance-Report (siehe [docs/dashboard.md](docs/dashboard.md)) |
 | **Kubernetes-Deployment (Helm-Chart)** | Verfügbar: `helm/agent-governance-console` plus ein Root-`Dockerfile`: Deployment, Service, optionales Ingress/HPA/PVC/Policy-ConfigMap, beide RBAC-Modi, Azure Workload Identity (siehe [docs/helm.md](docs/helm.md)) |
 | **Ingest-SLA (p99 < 10ms bei 1K Spans/s)** | Verifiziert: `agc-cli bench ingest`, gemessener p99 deutlich unter 1ms bei Zielrate, hält bei doppelter Rate und im realistischen Worst Case (siehe [docs/performance.md](docs/performance.md)) |
-| **OPA/Rego-Export** | Verfügbar: `agc-cli policy to-rego` rendert einen strukturellen Rego-Stub pro Policy: ein Ausgangspunkt zum manuellen Portieren, keine vollständige semantische Übersetzung |
-| **RBAC für REST-API** | Verfügbar: `AGC_JWT_SECRET` (HS256) oder `AGC_AAD_TENANT_ID` (Entra ID RS256) schützt Schreibzugriffe mit `Admin`, Lesezugriffe brauchen `Viewer`; opt-in, standardmässig aus |
-| **Microsoft-Sentinel-Export** | Verfügbar: `agc-cli sentinel export --format kql\|arm` erzeugt 4 eingebaute Analytics-Rule-Vorlagen aus der AGC-Audit-Tabelle, als KQL-Dateien oder als deploybares ARM-Template, siehe [docs/sentinel.md](docs/sentinel.md) |
-| **Compliance-Report-Export** | Verfügbar: `GET /api/v1/compliance/report` (Markdown oder `?format=json`), berichtet gegen 4 der 6 Microsoft-Responsible-AI-Prinzipien anhand echter Tenant-Audit-/Trace-Daten, siehe [docs/compliance.md](docs/compliance.md) |
-| **Dashboard-UI** | Verfügbar: `GET /dashboard`, eine eigenständige statische Seite (kein Build-Schritt) mit Health, Tenants, Policies, Tenant-Traces, paginierter Audit-Tabelle und Compliance-Report, siehe [docs/dashboard.md](docs/dashboard.md) |
-| **Kubernetes-Deployment (Helm-Chart)** | Verfügbar: `helm/agent-governance-console` plus ein Root-`Dockerfile` (Deployment, Service, optionales Ingress/HPA/PVC/Policy-ConfigMap, beide RBAC-Modi, Azure Workload Identity), siehe [docs/helm.md](docs/helm.md) |
-| **Ingest-SLA (p99 < 10ms bei 1K Spans/s)** | Verifiziert: `agc-cli bench ingest`, gemessener p99 deutlich unter 1ms bei Zielrate, hält bei doppelter Rate und im realistischen Worst Case, siehe [docs/performance.md](docs/performance.md) |
 
 Vollständige Liste aktueller und geplanter Endpunkte: [docs/api_reference.md](docs/api_reference.md).
 
