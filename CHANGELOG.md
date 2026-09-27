@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.2] - 2026-09-27
+
+### Changed
+
+- opentelemetry, opentelemetry_sdk and opentelemetry-otlp 0.32 to 0.33, together. Dependabot proposed them as three separate pull requests (#70, #71, #72), and each one alone failed to build, because the three crates only work at matching versions. No code changes were needed; the OTLP export was checked live: an ingested span arrives at a local OTLP/HTTP receiver as protobuf.
+
+---
+
 ## [1.3.1] - 2026-09-27
 
 ### Changed
