@@ -16,7 +16,7 @@ tracing      = { workspace = true }
 reqwest      = { workspace = true }
 opentelemetry = "0.32"
 opentelemetry_sdk = { version = "0.32", features = ["trace"] }
-opentelemetry-otlp = { version = "0.32", features = ["trace", "http-proto", "reqwest-blocking-client"], default-features = false }
+opentelemetry-otlp = { version = "0.33", features = ["trace", "http-proto", "reqwest-blocking-client"], default-features = false }
 
 [dev-dependencies]
 tokio     = { version = "1", features = ["full"] }
